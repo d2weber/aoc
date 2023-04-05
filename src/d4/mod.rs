@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use std::ops::RangeInclusive;
 fn make_range(s: &str) -> RangeInclusive<i32> {
     let (from, end) = s.split_once('-').unwrap();

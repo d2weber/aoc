@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use std::collections::HashSet;
 use std::collections::VecDeque;
 

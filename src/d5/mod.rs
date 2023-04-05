@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 

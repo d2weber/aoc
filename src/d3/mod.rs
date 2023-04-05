@@ -1,5 +1,3 @@
-#![cfg(test)]
-
 use std::collections::HashSet;
 
 fn priority(item: u8) -> u8 {
@@ -66,7 +64,6 @@ CrZsJsPPZsGzwwsLwLmpwMDw";
     }
 }
 
-#[cfg(test)]
 mod part2 {
     use super::*;
 
