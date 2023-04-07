@@ -1,11 +1,5 @@
 use std::str::FromStr;
 
-const SAMPLE: &'static str = "30373
-25512
-65332
-33549
-35390";
-
 struct Grid<T> {
     values: Vec<T>,
     n_cols: usize,
@@ -109,10 +103,19 @@ fn grid() {
     assert!(cross.next().unwrap().eq([5u8, 3].iter()));
     assert!(cross.next().is_none());
 }
-mod part1 {
+
+pub const SAMPLE: &str = "30373
+25512
+65332
+33549
+35390";
+
+pub const INPUT: &str = include_str!("input");
+
+pub mod part1 {
     use super::*;
 
-    fn solution(s: &str) -> usize {
+    pub fn solution(s: &str) -> usize {
         let heights = s.parse::<Grid<u8>>().unwrap();
         heights
             .iter_row_col_val()
@@ -130,13 +133,13 @@ mod part1 {
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(include_str!("input")), 1823);
+        assert_eq!(solution(INPUT), 1823);
     }
 }
 
-mod part2 {
+pub mod part2 {
     use super::*;
-    fn solution(s: &str) -> usize {
+    pub fn solution(s: &str) -> usize {
         let heights: Grid<u8> = s.parse().unwrap();
         heights
             .iter_row_col_val()
@@ -159,6 +162,6 @@ mod part2 {
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(include_str!("input")), 211680);
+        assert_eq!(solution(INPUT), 211680);
     }
 }

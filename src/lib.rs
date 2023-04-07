@@ -5,7 +5,6 @@
     nonstandard_style,
     future_incompatible
 )]
-#![cfg(test)]
 
 pub mod d1;
 pub mod d2;

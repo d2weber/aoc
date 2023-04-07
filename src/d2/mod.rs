@@ -134,12 +134,17 @@ impl Match {
     }
 }
 
+pub const SAMPLE: &str = "A Y
+B X
+C Z";
+
+pub const INPUT: &str = include_str!("input");
+
 pub mod part2 {
     use super::*;
 
-    pub fn solution(input: &'static str) -> i32 {
-        input
-            .lines()
+    pub fn solution(s: &str) -> i32 {
+        s.lines()
             .map(|line| {
                 let (other, outcome) = line.split_once(' ').unwrap();
                 let other: Action = other.try_into().unwrap();
@@ -151,14 +156,11 @@ pub mod part2 {
 
     #[test]
     fn sample() {
-        let sample_input = "A Y
-B X
-C Z";
-        assert_eq!(solution(sample_input), 12);
+        assert_eq!(solution(SAMPLE), 12);
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(include_str!("input")), 14184);
+        assert_eq!(solution(INPUT), 14184);
     }
 }
 
@@ -179,13 +181,10 @@ pub mod part1 {
 
     #[test]
     fn sample() {
-        let sample_input = "A Y
-B X
-C Z";
-        assert_eq!(solution(sample_input), 15);
+        assert_eq!(solution(SAMPLE), 15);
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(include_str!("input")), 13675);
+        assert_eq!(solution(INPUT), 13675);
     }
 }

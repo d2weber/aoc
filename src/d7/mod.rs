@@ -39,12 +39,12 @@ fn also_count_subdirectories(sizes: &mut FileSizes) {
         .rev() // Start from leave nodes
         .filter(|dir| *dir != Path::new("/"))
         .for_each(|dir| {
-            let size_to_add = *sizes.get(&*dir).unwrap();
+            let size_to_add = *sizes.get(dir).unwrap();
             *sizes.get_mut(dir.parent().unwrap()).unwrap() += size_to_add;
         });
 }
 
-const SAMPLE: &'static str = "$ cd /
+pub const SAMPLE: &str = "$ cd /
 $ ls
 dir a
 14848514 b.txt
@@ -68,9 +68,11 @@ $ ls
 5626152 d.ext
 7214296 k";
 
-mod part1 {
+pub const INPUT: &str = include_str!("input");
+
+pub mod part1 {
     use super::*;
-    fn solution(s: &str) -> usize {
+    pub fn solution(s: &str) -> usize {
         let mut sizes = parse_sizes_direct_content(s);
         also_count_subdirectories(&mut sizes);
         sizes.into_values().filter(|s| *s <= 100_000).sum()
@@ -82,13 +84,13 @@ mod part1 {
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(include_str!("input")), 1642503);
+        assert_eq!(solution(INPUT), 1642503);
     }
 }
 
-mod part2 {
+pub mod part2 {
     use super::*;
-    fn solution(s: &str) -> usize {
+    pub fn solution(s: &str) -> usize {
         let mut sizes = parse_sizes_direct_content(s);
         let sizes_total: usize = sizes.values().sum();
         let required_free_up = sizes_total - 40_000_000;
@@ -106,6 +108,6 @@ mod part2 {
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(include_str!("input")), 6999588);
+        assert_eq!(solution(INPUT), 6999588);
     }
 }

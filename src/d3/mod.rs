@@ -25,18 +25,23 @@ fn priority_test() {
     assert_eq!(priority(b't'), 20);
     assert_eq!(priority(b's'), 19);
 }
+pub const SAMPLE: &str = "vJrwpWtwJgWrhcsFMMfFFhFp
+jqHRNqRjqzjGDLGLrsFMfFZSrLrFZsSL
+PmmdzqPrVvPwwTWBwg
+wMqvLMZHhHMvwLHjbvcjnnSBnvTQFn
+ttgJtRGJQctTZtZT
+CrZsJsPPZsGzwwsLwLmpwMDw";
 
-mod part1 {
+pub const INPUT: &str = include_str!("input");
+
+pub mod part1 {
     use super::*;
 
-    fn solution(input: &'static str) -> i32 {
-        input
-            .lines()
+    pub fn solution(s: &str) -> i32 {
+        s.lines()
             .map(|line| {
-                let len = line.len();
-                assert_eq!(len, line.bytes().count());
-                assert_eq!(len % 2, 0);
-                let (a, b) = line.split_at(len / 2);
+                assert_eq!(line.len() % 2, 0);
+                let (a, b) = line.split_at(line.len() / 2);
                 let a: HashSet<u8> = a.bytes().collect();
                 let b: HashSet<u8> = b.bytes().collect();
                 let mut it = a.intersection(&b);
@@ -47,31 +52,21 @@ mod part1 {
             .sum()
     }
 
-    const SAMPLE_INPUT: &'static str = "vJrwpWtwJgWrhcsFMMfFFhFp
-jqHRNqRjqzjGDLGLrsFMfFZSrLrFZsSL
-PmmdzqPrVvPwwTWBwg
-wMqvLMZHhHMvwLHjbvcjnnSBnvTQFn
-ttgJtRGJQctTZtZT
-CrZsJsPPZsGzwwsLwLmpwMDw";
-
     #[test]
     fn sample() {
-        assert_eq!(solution(SAMPLE_INPUT), 157);
+        assert_eq!(solution(SAMPLE), 157);
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(include_str!("input")), 7568);
+        assert_eq!(solution(INPUT), 7568);
     }
 }
 
-mod part2 {
+pub mod part2 {
     use super::*;
 
-    fn solution(input: &'static str) -> i32 {
-        let mut hashsets = input.lines().map(|line| {
-            assert_eq!(line.len(), line.bytes().count());
-            line.bytes().collect()
-        });
+    pub fn solution(s: &str) -> i32 {
+        let mut hashsets = s.lines().map(|line| line.bytes().collect());
 
         let mut result = 0;
         while let Some(a) = hashsets.next() {
@@ -86,19 +81,12 @@ mod part2 {
         result
     }
 
-    const SAMPLE_INPUT: &'static str = "vJrwpWtwJgWrhcsFMMfFFhFp
-jqHRNqRjqzjGDLGLrsFMfFZSrLrFZsSL
-PmmdzqPrVvPwwTWBwg
-wMqvLMZHhHMvwLHjbvcjnnSBnvTQFn
-ttgJtRGJQctTZtZT
-CrZsJsPPZsGzwwsLwLmpwMDw";
-
     #[test]
     fn sample() {
-        assert_eq!(solution(SAMPLE_INPUT), 70);
+        assert_eq!(solution(SAMPLE), 70);
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(include_str!("input_part2")), 2780);
+        assert_eq!(solution(INPUT), 2780);
     }
 }

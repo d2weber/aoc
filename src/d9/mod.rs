@@ -67,10 +67,12 @@ impl Point {
     }
 }
 
-mod part1 {
+pub const INPUT: &str = include_str!("input");
+
+pub mod part1 {
     use super::*;
 
-    fn solution(s: &str) -> usize {
+    pub fn solution(s: &str) -> usize {
         let start = Point { x: 0, y: 0 };
         let mut head = start;
         let mut tail = start;
@@ -85,7 +87,7 @@ mod part1 {
             .len()
     }
 
-    const SAMPLE: &'static str = "R 4
+    pub const SAMPLE: &str = "R 4
 U 4
 L 3
 D 1
@@ -100,13 +102,13 @@ R 2";
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(include_str!("input")), 6212);
+        assert_eq!(solution(INPUT), 6212);
     }
 }
 
-mod part2 {
+pub mod part2 {
     use super::*;
-    fn solution(s: &str) -> usize {
+    pub fn solution(s: &str) -> usize {
         let start = Point { x: 0, y: 0 };
         let mut knots = [start; 10];
         parse_operations(s)
@@ -124,7 +126,7 @@ mod part2 {
             .len()
     }
 
-    const SAMPLE: &'static str = "R 5
+    pub const SAMPLE: &str = "R 5
 U 8
 L 8
 D 3
@@ -139,6 +141,6 @@ U 20";
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(include_str!("input")), 2522);
+        assert_eq!(solution(INPUT), 2522);
     }
 }

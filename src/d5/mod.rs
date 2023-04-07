@@ -1,17 +1,6 @@
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
-const SAMPLE_INPUT: &'static str = "    [D]    
-[N] [C]    
-[Z] [M] [P]
- 1   2   3 
-
-move 1 from 2 to 1
-move 3 from 1 to 3
-move 2 from 2 to 1
-move 1 from 1 to 2
-";
-
 type Stack = Vec<u8>;
 
 struct Stacks(Vec<Stack>);
@@ -37,7 +26,7 @@ impl FromStr for Stacks {
                     |(stack, parse_offset)| match line.as_bytes()[*parse_offset] {
                         b' ' => (),
                         v @ b'A'..=b'Z' => stack.push(v),
-                        v @ _ => panic!("Couldn't parse crate: `{v}`"),
+                        v => panic!("Couldn't parse crate: `{v}`"),
                     },
                 );
         });
@@ -92,7 +81,6 @@ impl FromStr for Operation {
 }
 
 fn parse_input(input: &str) -> (Stacks, impl Iterator<Item = Operation> + '_) {
-    assert_eq!(input.bytes().count(), input.len());
     let (stacks, procedure) = input.split_once("\n\n").unwrap();
     let stacks: Stacks = stacks.parse().unwrap();
 
@@ -102,11 +90,24 @@ fn parse_input(input: &str) -> (Stacks, impl Iterator<Item = Operation> + '_) {
     (stacks, procedure)
 }
 
-mod part1 {
+pub const SAMPLE: &str = "    [D]    
+[N] [C]    
+[Z] [M] [P]
+ 1   2   3 
+
+move 1 from 2 to 1
+move 3 from 1 to 3
+move 2 from 2 to 1
+move 1 from 1 to 2
+";
+
+pub const INPUT: &str = include_str!("input");
+
+pub mod part1 {
     use super::*;
 
-    fn solution(input: &str) -> String {
-        let (mut stacks, procedure) = parse_input(input);
+    pub fn solution(s: &str) -> String {
+        let (mut stacks, procedure) = parse_input(s);
         for Operation { count, from, to } in procedure {
             let split_idx = stacks[from].len() - count;
             let crates = stacks[from].split_off(split_idx);
@@ -117,19 +118,19 @@ mod part1 {
 
     #[test]
     fn sample() {
-        assert_eq!(solution(SAMPLE_INPUT), "CMZ");
+        assert_eq!(solution(SAMPLE), "CMZ");
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(include_str!("input")), "FWSHSPJWM");
+        assert_eq!(solution(INPUT), "FWSHSPJWM");
     }
 }
 
-mod part2 {
+pub mod part2 {
     use super::*;
 
-    fn solution(input: &str) -> String {
-        let (mut stacks, procedure) = parse_input(input);
+    pub fn solution(s: &str) -> String {
+        let (mut stacks, procedure) = parse_input(s);
         for Operation { count, from, to } in procedure {
             let split_idx = stacks[from].len() - count;
             let crates = stacks[from].split_off(split_idx);
@@ -140,10 +141,10 @@ mod part2 {
 
     #[test]
     fn sample() {
-        assert_eq!(solution(SAMPLE_INPUT), "MCD");
+        assert_eq!(solution(SAMPLE), "MCD");
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(include_str!("input")), "PWPWHGFZS");
+        assert_eq!(solution(INPUT), "PWPWHGFZS");
     }
 }

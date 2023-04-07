@@ -32,35 +32,46 @@ fn offset<const N: usize>(input: &str) -> usize {
         .unwrap()
 }
 
-mod part1 {
+pub const INPUT: &str = include_str!("input");
+
+pub mod part1 {
     use super::*;
+
+    pub fn solution(s: &str) -> usize {
+        offset::<4>(s)
+    }
 
     #[test]
     fn sample() {
-        assert_eq!(offset::<4>("vwbjplbgvbhsrlpgdmjqwftvncz"), 4);
-        assert_eq!(offset::<4>("bvwbjplbgvbhsrlpgdmjqwftvncz"), 5);
-        assert_eq!(offset::<4>("nppdvjthqldpwncqszvftbrmjlhg"), 6);
-        assert_eq!(offset::<4>("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg"), 10);
-        assert_eq!(offset::<4>("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw"), 11);
+        assert_eq!(solution("vwbjplbgvbhsrlpgdmjqwftvncz"), 4);
+        assert_eq!(solution("bvwbjplbgvbhsrlpgdmjqwftvncz"), 5);
+        assert_eq!(solution("nppdvjthqldpwncqszvftbrmjlhg"), 6);
+        assert_eq!(solution("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg"), 10);
+        assert_eq!(solution("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw"), 11);
     }
     #[test]
     fn actual() {
-        assert_eq!(offset::<4>(include_str!("input")), 1655);
+        assert_eq!(solution(INPUT), 1655);
     }
 }
-mod part2 {
+
+pub mod part2 {
     use super::*;
+
+    pub fn solution(s: &str) -> usize {
+        offset::<14>(s)
+    }
 
     #[test]
     fn sample() {
-        assert_eq!(offset::<14>("mjqjpqmgbljsphdztnvjfqwrcgsmlb"), 19);
-        assert_eq!(offset::<14>("bvwbjplbgvbhsrlpgdmjqwftvncz"), 23);
-        assert_eq!(offset::<14>("nppdvjthqldpwncqszvftbrmjlhg"), 23);
-        assert_eq!(offset::<14>("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg"), 29);
-        assert_eq!(offset::<14>("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw"), 26);
+        assert_eq!(solution("mjqjpqmgbljsphdztnvjfqwrcgsmlb"), 19);
+        assert_eq!(solution("bvwbjplbgvbhsrlpgdmjqwftvncz"), 23);
+        assert_eq!(solution("nppdvjthqldpwncqszvftbrmjlhg"), 23);
+        assert_eq!(solution("nznrnfrfntjfmvfwmzdfjlvtqnbhcprsg"), 29);
+        assert_eq!(solution("zcfzfwzzqfrljwzlrfnpqdbhtmscgvjw"), 26);
     }
     #[test]
     fn actual() {
-        assert_eq!(offset::<14>(include_str!("input")), 2665);
+        assert_eq!(solution(INPUT), 2665);
     }
 }

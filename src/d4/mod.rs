@@ -1,4 +1,5 @@
 use std::ops::RangeInclusive;
+
 fn make_range(s: &str) -> RangeInclusive<i32> {
     let (from, end) = s.split_once('-').unwrap();
     let from = from.parse::<i32>().unwrap();
@@ -11,20 +12,45 @@ fn parse_ranges(line: &str) -> (RangeInclusive<i32>, RangeInclusive<i32>) {
     (make_range(a), make_range(b))
 }
 
-const SAMPLE_INPUT: &'static str = "2-4,6-8
+pub const SAMPLE: &str = "2-4,6-8
 2-3,4-5
 5-7,7-9
 2-8,3-7
 6-6,4-6
 2-6,4-8";
 
-mod part2 {
+pub const INPUT: &str = include_str!("input");
+
+pub mod part1 {
+    use super::*;
+    fn contains(a: &RangeInclusive<i32>, b: &RangeInclusive<i32>) -> bool {
+        a.start() <= b.start() && a.end() >= b.end()
+    }
+
+    pub fn solution(s: &str) -> usize {
+        s.lines()
+            .map(parse_ranges)
+            .filter(|(a, b)| contains(a, b) || contains(b, a))
+            .count()
+    }
+
+    #[test]
+    fn sample() {
+        assert_eq!(solution(SAMPLE), 2);
+    }
+    #[test]
+    fn actual() {
+        assert_eq!(solution(INPUT), 562);
+    }
+}
+
+pub mod part2 {
     use super::*;
     fn intersect(a: &RangeInclusive<i32>, b: &RangeInclusive<i32>) -> bool {
         (a.start() <= b.end() && a.end() >= b.start())
             || (b.start() <= a.end() && b.end() >= a.start())
     }
-    fn solution(input: &str) -> usize {
+    pub fn solution(input: &str) -> usize {
         input
             .lines()
             .map(parse_ranges)
@@ -34,34 +60,10 @@ mod part2 {
 
     #[test]
     fn sample() {
-        assert_eq!(solution(SAMPLE_INPUT), 4);
+        assert_eq!(solution(SAMPLE), 4);
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(include_str!("input")), 924);
-    }
-}
-
-mod part1 {
-    use super::*;
-    fn contains(a: &RangeInclusive<i32>, b: &RangeInclusive<i32>) -> bool {
-        a.start() <= b.start() && a.end() >= b.end()
-    }
-
-    fn solution(input: &str) -> usize {
-        input
-            .lines()
-            .map(parse_ranges)
-            .filter(|(a, b)| contains(&a, &b) || contains(&b, &a))
-            .count()
-    }
-
-    #[test]
-    fn sample() {
-        assert_eq!(solution(SAMPLE_INPUT), 2);
-    }
-    #[test]
-    fn actual() {
-        assert_eq!(solution(include_str!("input")), 562);
+        assert_eq!(solution(INPUT), 924);
     }
 }
