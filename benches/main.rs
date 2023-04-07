@@ -11,5 +11,10 @@ fn d09(c: &mut Criterion) {
     c.bench_function("d09", |b| b.iter(|| solution(black_box(INPUT))));
 }
 
-criterion_group!(benches, d08, d09);
+fn d10(c: &mut Criterion) {
+    use d10::{part2::solution, INPUT};
+    c.bench_function("d10", |b| b.iter(|| solution(black_box(INPUT))));
+}
+
+criterion_group!(benches, d08, d09, d10);
 criterion_main!(benches);
