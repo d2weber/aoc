@@ -11,30 +11,81 @@ impl FromStr for Grid<u8> {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let n_cols = s.find('\n').unwrap();
-        let heights = s
+        let values: Vec<_> = s
             .matches(|c| c != '\n')
             .map(|c| u8::from_str(c).unwrap())
             .collect();
-        Ok(Grid::from_vec(heights, n_cols))
-    }
-}
-
-trait DoubleEndedExactSizeIterator: DoubleEndedIterator + ExactSizeIterator {}
-impl<T: DoubleEndedIterator + ExactSizeIterator> DoubleEndedExactSizeIterator for T {}
-
-impl<T> Grid<T> {
-    fn from_vec(values: Vec<T>, n_cols: usize) -> Grid<T> {
         let n_rows = values.len() / n_cols;
-        assert_eq!(values.len(), n_rows * n_cols);
 
-        Grid {
+        Ok(Grid {
             values,
             n_cols,
             n_rows,
-        }
+        })
     }
+}
+
+enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+struct GridIterator<'a, T> {
+    grid: &'a Grid<T>,
+    col: usize,
+    row: usize,
+    dir: Direction,
+}
+
+impl<'a, T> Iterator for GridIterator<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.dir {
+            Direction::Up => {
+                if self.row == 0 {
+                    return None;
+                }
+                self.row -= 1;
+            }
+            Direction::Down => {
+                if self.row == self.grid.n_rows - 1 {
+                    return None;
+                }
+                self.row += 1;
+            }
+            Direction::Left => {
+                if self.col == 0 {
+                    return None;
+                }
+                self.col -= 1;
+            }
+            Direction::Right => {
+                if self.col == self.grid.n_cols - 1 {
+                    return None;
+                }
+                self.col += 1;
+            }
+        }
+        Some(self.grid.at((self.row, self.col)))
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let l = match self.dir {
+            Direction::Up => self.row,
+            Direction::Down => self.grid.n_rows - self.row - 1,
+            Direction::Left => self.col,
+            Direction::Right => self.grid.n_cols - self.col - 1,
+        };
+        (l, Some(l))
+    }
+}
+
+impl<'a, T> ExactSizeIterator for GridIterator<'a, T> {}
+
+impl<T> Grid<T> {
     fn row_col(&self, idx: usize) -> (usize, usize) {
-        assert!(idx < self.n_cols * self.n_rows);
         (idx / self.n_cols, idx % self.n_cols)
     }
     fn iter_row_col_val(&self) -> impl Iterator<Item = ((usize, usize), &T)> + '_ {
@@ -46,61 +97,33 @@ impl<T> Grid<T> {
     fn at(&self, (row, col): (usize, usize)) -> &T {
         &self.values[row * self.n_cols + col]
     }
-    fn row(&self, row: usize) -> impl DoubleEndedIterator<Item = &T> + ExactSizeIterator {
-        (0..self.n_cols).map(move |col| self.at((row, col)))
+    fn iter_from(&self, (row, col): (usize, usize), dir: Direction) -> GridIterator<'_, T> {
+        GridIterator {
+            grid: self,
+            col,
+            row,
+            dir,
+        }
     }
-    fn col(&self, col: usize) -> impl DoubleEndedIterator<Item = &T> + ExactSizeIterator {
-        (0..self.n_rows).map(move |row| self.at((row, col)))
-    }
-    fn left_of(
-        &self,
-        row: usize,
-        col: usize,
-    ) -> impl DoubleEndedIterator<Item = &T> + ExactSizeIterator {
-        Box::new(self.row(row).take(col).rev())
-    }
-    fn right_of(
-        &self,
-        row: usize,
-        col: usize,
-    ) -> impl DoubleEndedIterator<Item = &T> + ExactSizeIterator {
-        Box::new(self.row(row).skip(col).take(self.n_cols - col).skip(1))
-    }
-    fn above_of(
-        &self,
-        row: usize,
-        col: usize,
-    ) -> impl DoubleEndedIterator<Item = &T> + ExactSizeIterator {
-        Box::new(self.col(col).take(row).rev())
-    }
-    fn below_of(
-        &self,
-        row: usize,
-        col: usize,
-    ) -> impl DoubleEndedIterator<Item = &T> + ExactSizeIterator {
-        Box::new(self.col(col).skip(row).take(self.n_rows - row).skip(1))
-    }
-    fn cross_out(
-        &self,
-        (row, col): (usize, usize),
-    ) -> impl Iterator<Item = Box<dyn DoubleEndedExactSizeIterator<Item = &T> + '_>> {
-        use std::iter::once;
-
-        once(Box::new(self.left_of(row, col)) as _)
-            .chain(once(Box::new(self.right_of(row, col)) as _))
-            .chain(once(Box::new(self.above_of(row, col)) as _))
-            .chain(once(Box::new(self.below_of(row, col)) as _))
+    fn cross(&self, (row, col): (usize, usize)) -> impl Iterator<Item = GridIterator<'_, T>> {
+        [
+            self.iter_from((row, col), Direction::Up),
+            self.iter_from((row, col), Direction::Down),
+            self.iter_from((row, col), Direction::Left),
+            self.iter_from((row, col), Direction::Right),
+        ]
+        .into_iter()
     }
 }
 
 #[test]
 fn grid() {
     let grid: Grid<u8> = SAMPLE.parse().unwrap();
-    let mut cross = grid.cross_out((2, 2));
+    let mut cross = grid.cross((2, 2));
+    assert!(cross.next().unwrap().eq([5u8, 3].iter()));
+    assert!(cross.next().unwrap().eq([5u8, 3].iter()));
     assert!(cross.next().unwrap().eq([5u8, 6].iter()));
     assert!(cross.next().unwrap().eq([3u8, 2].iter()));
-    assert!(cross.next().unwrap().eq([5u8, 3].iter()));
-    assert!(cross.next().unwrap().eq([5u8, 3].iter()));
     assert!(cross.next().is_none());
 }
 
@@ -119,11 +142,7 @@ pub mod part1 {
         let heights = s.parse::<Grid<u8>>().unwrap();
         heights
             .iter_row_col_val()
-            .filter(|(row_col, h)| {
-                heights
-                    .cross_out(*row_col)
-                    .any(|mut ray| ray.all(|o| o < h))
-            })
+            .filter(|(row_col, h)| heights.cross(*row_col).any(|mut ray| ray.all(|o| o < h)))
             .count()
     }
 
@@ -145,11 +164,11 @@ pub mod part2 {
             .iter_row_col_val()
             .map(|(row_col, h)| {
                 heights
-                    .cross_out(row_col)
-                    .map(
-                        |ray|  // Also count the tree that stops iteration, but only if there is one
-                        ray.len().min(ray.take_while(|o| h > o).count() + 1),
-                    )
+                    .cross(row_col)
+                    .map(|ray|
+                            // Also count the tree that stops iteration
+                            // but only if there is one
+                            ray.len().min(ray.take_while(|o| h > o).count() + 1))
                     .product()
             })
             .max()
