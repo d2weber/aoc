@@ -99,20 +99,36 @@ impl Map {
         };
         result
     }
+}
 
-    /// This recursive solution works but it would be nicer iterate over distances
+struct StepArguments {
+    f: FieldIdx,
+    distance: usize,
+    last_height: u8,
+}
+
+impl Map {
     fn step(
         &mut self,
-        f: &FieldIdx,
-        distance: usize,
-        last_height: u8,
-        height_predicate: impl FnOnce(u8, u8) -> bool + Copy,
-    ) {
-        if self.at(f).distance > distance && height_predicate(last_height, self.at(f).height) {
-            self.mut_at(f).distance = distance;
-            self.adjacent_to(f)
+        StepArguments {
+            f,
+            distance,
+            last_height,
+        }: StepArguments,
+        height_predicate: impl FnOnce(u8, u8) -> bool + Copy + 'static,
+    ) -> Vec<StepArguments> {
+        if self.at(&f).distance > distance && height_predicate(last_height, self.at(&f).height) {
+            self.mut_at(&f).distance = distance;
+            self.adjacent_to(&f)
                 .into_iter()
-                .for_each(|ff| self.step(&ff, distance + 1, self.at(f).height, height_predicate))
+                .map(move |ff| StepArguments {
+                    f: ff,
+                    distance: distance + 1,
+                    last_height: self.at(&f).height,
+                })
+                .collect()
+        } else {
+            Vec::new()
         }
     }
 }
@@ -122,7 +138,18 @@ pub mod part1 {
 
     pub fn solution(s: &str) -> usize {
         let (mut map, start, end) = parse(s);
-        map.step(&start, 0, map.at(&start).height, |h0, h1| h1 <= h0 + 1);
+        let start_height = map.at(&start).height;
+        let mut args = vec![StepArguments {
+            f: start,
+            distance: 0,
+            last_height: start_height,
+        }];
+        while !args.is_empty() {
+            args = args
+                .into_iter()
+                .flat_map(|tt| map.step(tt, |h0, h1| h1 <= h0 + 1).into_iter())
+                .collect();
+        }
         map.at(&end).distance
     }
     #[test]
@@ -140,7 +167,18 @@ pub mod part2 {
 
     pub fn solution(s: &str) -> usize {
         let (mut map, _start, end) = parse(s);
-        map.step(&end, 0, map.at(&end).height, |h0, h1| h1 + 1 >= h0);
+        let init_height = map.at(&end).height;
+        let mut args = vec![StepArguments {
+            f: end,
+            distance: 0,
+            last_height: init_height,
+        }];
+        while !args.is_empty() {
+            args = args
+                .into_iter()
+                .flat_map(|tt| map.step(tt, |h0, h1| h1 + 1 >= h0).into_iter())
+                .collect();
+        }
         map.fields
             .into_iter()
             .filter(|&Field { height, .. }| height == 0)
