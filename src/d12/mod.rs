@@ -1,8 +1,11 @@
+use either::Either;
+use std::iter;
+
 pub const SAMPLE: &str = include_str!("sample");
 
 pub const INPUT: &str = include_str!("input");
 
-fn parse(s: &str) -> (Map, FieldIdx, FieldIdx) {
+fn parse(s: &str) -> (FieldIdx, FieldIdx, Map) {
     let n_cols = s.find('\n').unwrap();
     let mut start = None;
     let mut end = None;
@@ -39,11 +42,10 @@ fn parse(s: &str) -> (Map, FieldIdx, FieldIdx) {
     };
     let start = map.field_from_idx(start.unwrap());
     let end = map.field_from_idx(end.unwrap());
-
-    (map, start, end)
+    (start, end, map)
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct FieldIdx {
     row: usize,
     col: usize,
@@ -62,18 +64,6 @@ struct Map {
 }
 
 impl Map {
-    fn field_from_idx(&self, i: usize) -> FieldIdx {
-        assert!(i < self.fields.len());
-        FieldIdx {
-            row: i / self.n_cols,
-            col: i % self.n_cols,
-        }
-    }
-
-    fn idx_from_field(&self, FieldIdx { row, col }: &FieldIdx) -> usize {
-        row * self.n_cols + col
-    }
-
     fn at(&self, f: &FieldIdx) -> &Field {
         &self.fields[self.idx_from_field(f)]
     }
@@ -99,10 +89,21 @@ impl Map {
         };
         result
     }
+
+    fn field_from_idx(&self, i: usize) -> FieldIdx {
+        FieldIdx {
+            row: i / self.n_cols,
+            col: i % self.n_cols,
+        }
+    }
+
+    fn idx_from_field(&self, FieldIdx { row, col }: &FieldIdx) -> usize {
+        row * self.n_cols + col
+    }
 }
 
 struct StepArguments {
-    f: FieldIdx,
+    field_idx: FieldIdx,
     distance: usize,
     last_height: u8,
 }
@@ -111,25 +112,58 @@ impl Map {
     fn step(
         &mut self,
         StepArguments {
-            f,
+            field_idx,
             distance,
             last_height,
         }: StepArguments,
         height_predicate: impl FnOnce(u8, u8) -> bool + Copy + 'static,
-    ) -> Vec<StepArguments> {
-        if self.at(&f).distance > distance && height_predicate(last_height, self.at(&f).height) {
-            self.mut_at(&f).distance = distance;
-            self.adjacent_to(&f)
-                .into_iter()
-                .map(move |ff| StepArguments {
-                    f: ff,
-                    distance: distance + 1,
-                    last_height: self.at(&f).height,
-                })
-                .collect()
+    ) -> impl Iterator<Item = StepArguments> {
+        if self.at(&field_idx).distance > distance
+            && height_predicate(last_height, self.at(&field_idx).height)
+        {
+            self.mut_at(&field_idx).distance = distance;
+            let height = self.at(&field_idx).height;
+            Either::Left(
+                self.adjacent_to(&field_idx)
+                    .into_iter()
+                    .map(move |ff| StepArguments {
+                        field_idx: ff,
+                        distance: distance + 1,
+                        last_height: height,
+                    }),
+            )
         } else {
-            Vec::new()
+            Either::Right(iter::empty())
         }
+    }
+
+    fn next_depth(
+        &mut self,
+        args: Vec<StepArguments>,
+        height_predicate: impl FnOnce(u8, u8) -> bool + Copy + 'static,
+    ) {
+        if !args.is_empty() {
+            let next_args: Vec<_> = args
+                .into_iter()
+                .flat_map(|tt| self.step(tt, height_predicate))
+                .collect();
+            self.next_depth(next_args, height_predicate);
+        }
+    }
+
+    /// Expects distances to be initialized to u8::MAX
+    fn calculate_distances(
+        &mut self,
+        start: FieldIdx,
+        height_predicate: impl FnOnce(u8, u8) -> bool + Copy + 'static,
+    ) {
+        let start_height = self.at(&start).height;
+        let args = vec![StepArguments {
+            field_idx: start,
+            distance: 0,
+            last_height: start_height,
+        }];
+        self.next_depth(args, height_predicate);
     }
 }
 
@@ -137,19 +171,8 @@ pub mod part1 {
     use super::*;
 
     pub fn solution(s: &str) -> usize {
-        let (mut map, start, end) = parse(s);
-        let start_height = map.at(&start).height;
-        let mut args = vec![StepArguments {
-            f: start,
-            distance: 0,
-            last_height: start_height,
-        }];
-        while !args.is_empty() {
-            args = args
-                .into_iter()
-                .flat_map(|tt| map.step(tt, |h0, h1| h1 <= h0 + 1).into_iter())
-                .collect();
-        }
+        let (start, end, mut map) = parse(s);
+        map.calculate_distances(start, |h0, h1| h1 <= h0 + 1);
         map.at(&end).distance
     }
     #[test]
@@ -166,19 +189,8 @@ pub mod part2 {
     use super::*;
 
     pub fn solution(s: &str) -> usize {
-        let (mut map, _start, end) = parse(s);
-        let init_height = map.at(&end).height;
-        let mut args = vec![StepArguments {
-            f: end,
-            distance: 0,
-            last_height: init_height,
-        }];
-        while !args.is_empty() {
-            args = args
-                .into_iter()
-                .flat_map(|tt| map.step(tt, |h0, h1| h1 + 1 >= h0).into_iter())
-                .collect();
-        }
+        let (_start, end, mut map) = parse(s);
+        map.calculate_distances(end, |h0, h1| h1 + 1 >= h0);
         map.fields
             .into_iter()
             .filter(|&Field { height, .. }| height == 0)
