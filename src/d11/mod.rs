@@ -1,4 +1,3 @@
-use num::integer::lcm;
 use std::mem;
 use std::str::FromStr;
 
@@ -65,7 +64,8 @@ where
     it.next()
         .unwrap()
         .trim()
-        .splitn(n + 1, ' ').nth(n)
+        .splitn(n + 1, ' ')
+        .nth(n)
         .unwrap()
         .parse::<F>()
         .unwrap()
@@ -137,10 +137,10 @@ pub mod part2 {
 
     pub fn solution(s: &str) -> usize {
         let mut monkeys = parse_monkeys(s);
-        let lcm = monkeys
+        let product = monkeys
             .iter()
             .map(|m| m.divisor)
-            .reduce(lcm)
+            .reduce(std::ops::Mul::mul)
             .unwrap();
         (0..10000).for_each(|_| {
             (0..monkeys.len()).for_each(|i| {
@@ -149,7 +149,7 @@ pub mod part2 {
                     .for_each(|mut item| {
                         let m = &mut monkeys[i];
                         m.n_inspected += 1;
-                        item = m.op.perform(item) % lcm;
+                        item = m.op.perform(item) % product;
                         let dst = m.destination_for(item);
                         monkeys[dst].items.push(item);
                     });
