@@ -40,27 +40,24 @@ impl Ord for Packet {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         use std::cmp::Ordering::*;
         match (self, other) {
-            (List(slf), List(othr)) => {
-                let mut other_it = othr.iter();
-                for s in slf {
-                    let Some(o) = other_it.next() else {
-                        return Greater; // other went out of elements
-                    };
-
-                    match s.cmp(o) {
-                        ord @ Less | ord @ Greater => {
-                            return ord;
+            (List(left), List(right)) => {
+                let (mut left_it, mut right_it) = (left.iter(), right.iter());
+                loop {
+                    match (left_it.next(), right_it.next()) {
+                        (Some(l), Some(r)) => {
+                            let ord = l.cmp(r);
+                            if ord.is_ne() {
+                                return ord;
+                            }
                         }
-                        Equal => (),
+                        (Some(_), None) => return Greater,
+                        (None, Some(_)) => return Less,
+                        (None, None) => return Equal,
                     }
                 }
-                if other_it.next().is_some() {
-                    return Less; // self went out of elements
-                }
-                Equal
             }
-            (Int(slf), Int(othr)) if slf == othr => Equal,
-            (Int(slf), Int(othr)) => slf.cmp(othr),
+            (Int(l), Int(r)) if l == r => Equal,
+            (Int(l), Int(r)) => l.cmp(r),
             (List(_), Int(i)) => self.cmp(&List(vec![Int(*i)])),
             (Int(i), List(_)) => List(vec![Int(*i)]).cmp(other),
         }
@@ -100,21 +97,20 @@ pub mod part2 {
     use super::*;
 
     pub fn solution(s: &str) -> usize {
-        let mut packets: Vec<Packet> = s.lines().filter(|l| !l.is_empty()).map(parse).collect();
+        let mut packets: Vec<_> = s.lines().filter(|l| !l.is_empty()).map(parse).collect();
         packets.sort_unstable();
-        let distress_signals = [
+        [
             // sorted
             List(vec![List(vec![Int(2)])]),
             List(vec![List(vec![Int(6)])]),
-        ];
-        distress_signals
-            .into_iter()
-            .map(|p| {
-                let pos = packets.binary_search(&p).unwrap_err();
-                packets.insert(pos, p);
-                pos + 1
-            })
-            .product()
+        ]
+        .into_iter()
+        .map(|p| {
+            let pos = packets.binary_search(&p).unwrap_err();
+            packets.insert(pos, p);
+            pos + 1 // First element has index 1 (not 0)
+        })
+        .product()
     }
     #[test]
     fn sample() {
