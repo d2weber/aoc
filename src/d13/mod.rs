@@ -2,7 +2,7 @@ pub const SAMPLE: &str = include_str!("sample");
 
 pub const INPUT: &str = include_str!("input");
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 enum Packet {
     List(Vec<Packet>),
     Int(i32),
@@ -36,26 +36,40 @@ fn parse(s: &str) -> Packet {
     }
 }
 
-fn are_in_order((left, right): (Packet, Packet)) -> Option<bool> {
-    match (left, right) {
-        (List(left), List(right)) => {
-            let mut right_it = right.into_iter();
-            left.into_iter()
-                .find_map(|left| {
-                    if let Some(right) = right_it.next() {
-                        are_in_order((left, right))
-                    } else {
-                        Some(false) // right went out of elements
+impl Ord for Packet {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use std::cmp::Ordering::*;
+        match (self, other) {
+            (List(slf), List(othr)) => {
+                let mut other_it = othr.iter();
+                for s in slf {
+                    let Some(o) = other_it.next() else {
+                        return Greater; // other went out of elements
+                    };
+
+                    match s.cmp(o) {
+                        ord @ Less | ord @ Greater => {
+                            return ord;
+                        }
+                        Equal => (),
                     }
-                })
-                .or(
-                    Some(true).filter(|_| right_it.next().is_some()), // left went out of elements
-                )
+                }
+                if other_it.next().is_some() {
+                    return Less; // self went out of elements
+                }
+                Equal
+            }
+            (Int(slf), Int(othr)) if slf == othr => Equal,
+            (Int(slf), Int(othr)) => slf.cmp(othr),
+            (List(_), Int(i)) => self.cmp(&List(vec![Int(*i)])),
+            (Int(i), List(_)) => List(vec![Int(*i)]).cmp(other),
         }
-        (Int(left), Int(right)) if left == right => None,
-        (Int(left), Int(right)) => Some(left < right),
-        (List(l), Int(i)) => are_in_order((List(l), List(vec![Int(i)]))),
-        (Int(i), List(l)) => are_in_order((List(vec![Int(i)]), List(l))),
+    }
+}
+
+impl PartialOrd for Packet {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -68,7 +82,7 @@ pub mod part1 {
             .filter_map(|(ll, i)| {
                 let (left, right) = ll.trim().split_once('\n').unwrap();
                 let (left, right) = (parse(left), parse(right));
-                Some(i).filter(|_| are_in_order((left, right)).unwrap())
+                Some(i).filter(|_| left < right)
             })
             .sum()
     }
@@ -79,5 +93,35 @@ pub mod part1 {
     #[test]
     fn actual() {
         assert_eq!(solution(INPUT), 5503);
+    }
+}
+
+pub mod part2 {
+    use super::*;
+
+    pub fn solution(s: &str) -> usize {
+        let mut packets: Vec<Packet> = s.lines().filter(|l| !l.is_empty()).map(parse).collect();
+        packets.sort_unstable();
+        let distress_signals = [
+            // sorted
+            List(vec![List(vec![Int(2)])]),
+            List(vec![List(vec![Int(6)])]),
+        ];
+        distress_signals
+            .into_iter()
+            .map(|p| {
+                let pos = packets.binary_search(&p).unwrap_err();
+                packets.insert(pos, p);
+                pos + 1
+            })
+            .product()
+    }
+    #[test]
+    fn sample() {
+        assert_eq!(solution(SAMPLE), 140);
+    }
+    #[test]
+    fn actual() {
+        assert_eq!(solution(INPUT), 20952);
     }
 }
