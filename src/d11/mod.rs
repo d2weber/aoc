@@ -1,4 +1,4 @@
-use std::mem;
+use std::collections::VecDeque;
 use std::str::FromStr;
 
 pub const SAMPLE: &str = include_str!("sample");
@@ -7,13 +7,13 @@ pub const INPUT: &str = include_str!("input");
 
 #[derive(Debug)]
 enum Operation {
-    Mul(i64),
-    Add(i64),
+    Mul(u64),
+    Add(u64),
     Square(),
 }
 
 impl Operation {
-    fn perform(&self, v: i64) -> i64 {
+    fn perform(&self, v: u64) -> u64 {
         match self {
             Operation::Mul(o) => o * v,
             Operation::Add(o) => o + v,
@@ -40,15 +40,15 @@ impl FromStr for Operation {
 
 #[derive(Debug)]
 struct Monkey {
-    items: Vec<i64>,
+    items: VecDeque<u64>,
     op: Operation,
-    divisor: i64,
+    divisor: u64,
     destinations: (usize, usize),
     n_inspected: usize,
 }
 
 impl Monkey {
-    fn destination_for(&self, item: i64) -> usize {
+    fn destination_for(&self, item: u64) -> usize {
         if (item % self.divisor) == 0 {
             self.destinations.0
         } else {
@@ -102,6 +102,8 @@ fn monkey_buisness(mut monkeys: Vec<Monkey>) -> usize {
         .product()
 }
 
+const CAN_BE_SQUARED: u64 = 1u64 << 32; // squaring this is safe
+
 pub mod part1 {
     use super::*;
 
@@ -109,15 +111,13 @@ pub mod part1 {
         let mut monkeys = parse_monkeys(s);
         (0..20).for_each(|_| {
             (0..monkeys.len()).for_each(|i| {
-                mem::take(&mut monkeys[i].items)
-                    .into_iter()
-                    .for_each(|mut item| {
-                        let m = &mut monkeys[i];
-                        m.n_inspected += 1;
-                        item = m.op.perform(item) / 3;
-                        let dst = m.destination_for(item);
-                        monkeys[dst].items.push(item);
-                    });
+                monkeys[i].n_inspected += monkeys[i].items.len();
+                while let Some(mut item) = monkeys[i].items.pop_front() {
+                    let m = &mut monkeys[i];
+                    item = m.op.perform(item) / 3;
+                    let dst = m.destination_for(item);
+                    monkeys[dst].items.push_back(item);
+                }
             });
         });
         monkey_buisness(monkeys)
@@ -144,15 +144,16 @@ pub mod part2 {
             .unwrap();
         (0..10000).for_each(|_| {
             (0..monkeys.len()).for_each(|i| {
-                mem::take(&mut monkeys[i].items)
-                    .into_iter()
-                    .for_each(|mut item| {
-                        let m = &mut monkeys[i];
-                        m.n_inspected += 1;
-                        item = m.op.perform(item) % product;
-                        let dst = m.destination_for(item);
-                        monkeys[dst].items.push(item);
-                    });
+                monkeys[i].n_inspected += monkeys[i].items.len();
+                while let Some(mut item) = monkeys[i].items.pop_front() {
+                    let m = &mut monkeys[i];
+                    if item > CAN_BE_SQUARED {
+                        item %= product;
+                    }
+                    item = m.op.perform(item);
+                    let dst = m.destination_for(item);
+                    monkeys[dst].items.push_back(item);
+                }
             });
         });
         monkey_buisness(monkeys)
