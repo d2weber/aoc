@@ -62,27 +62,6 @@ struct Point {
     y: usize,
 }
 
-impl Point {
-    fn center(&self) -> Point {
-        Point {
-            x: self.x,
-            y: self.y + 1,
-        }
-    }
-    fn left(&self) -> Point {
-        Point {
-            x: self.x - 1,
-            y: self.y + 1,
-        }
-    }
-    fn right(&self) -> Point {
-        Point {
-            x: self.x + 1,
-            y: self.y + 1,
-        }
-    }
-}
-
 struct World {
     fields: Vec<Field>,
     size_y: usize,
@@ -107,26 +86,28 @@ impl World {
     fn make_solid(&mut self, p: &Point) {
         *self.mut_at(p) = Field::Solid();
     }
-    fn is_free(&self, p: Point) -> Option<Point> {
-        Some(p).filter(|pp| *self.at(pp) == Field::Free())
+    fn is_free(&self, p: &Point) -> bool {
+        *self.at(p) == Field::Free()
     }
 }
 
 impl World {
     fn spawn_sand(&mut self) -> Result<(), &str> {
-        let mut p = SAND_SOURCE;
-        while p.y < self.size_y {
-            if let Some(next_p) = self.is_free(p.center()) {
-                p = next_p;
-            } else if let Some(next_p) = self.is_free(p.left()) {
-                p = next_p;
-            } else if let Some(next_p) = self.is_free(p.right()) {
-                p = next_p;
-            } else if let Some(pp) = self.is_free(p) {
-                self.make_solid(&pp);
-                return Ok(());
+        if *self.at(&SAND_SOURCE) == Field::Solid() {
+            return Err("Source covered");
+        }
+        let mut x = SAND_SOURCE.x;
+        for y in (SAND_SOURCE.y + 1)..self.size_y {
+            if self.is_free(&Point { x, y }) {
+                continue;
+            } else if self.is_free(&Point { x: x - 1, y }) {
+                x -= 1;
+            } else if self.is_free(&Point { x: x + 1, y }) {
+                x += 1;
             } else {
-                return Err("Source covered");
+                // Make last step solid
+                self.make_solid(&Point { x, y: y - 1 });
+                return Ok(());
             }
         }
         Err("Out of world")
@@ -175,9 +156,9 @@ pub mod part2 {
     fn sample() {
         assert_eq!(solution(SAMPLE), 93);
     }
-    // This test seems to be slow only in debug mode
-    // #[test]
-    // fn actual() {
-    //     assert_eq!(solution(INPUT), 28145);
-    // }
+    #[test]
+    #[ignore = "slow when unoptimized"]
+    fn actual() {
+        assert_eq!(solution(INPUT), 28145);
+    }
 }
