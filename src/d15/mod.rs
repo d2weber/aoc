@@ -1,20 +1,18 @@
-use std::ops::{RangeInclusive, Sub};
+use std::ops::RangeInclusive;
 
 pub const SAMPLE: &str = include_str!("sample");
 
 pub const INPUT: &str = include_str!("input");
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 struct Point {
     x: i32,
     y: i32,
 }
 
-impl Sub<&Point> for &Point {
-    type Output = u32;
-
-    fn sub(self, rhs: &Point) -> Self::Output {
-        self.x.abs_diff(rhs.x) + self.y.abs_diff(rhs.y)
+impl Point {
+    fn manhatten_dist(&self, other: &Point) -> u32 {
+        self.x.abs_diff(other.x) + self.y.abs_diff(other.y)
     }
 }
 
@@ -23,7 +21,7 @@ struct Sensor {
     range: u32, // within which no other beacon can be
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Eq, Hash)]
 struct Beacon(Point);
 
 fn parse(s: &str) -> (Sensor, Beacon) {
@@ -42,7 +40,7 @@ fn parse(s: &str) -> (Sensor, Beacon) {
         x: x.parse().unwrap(),
         y: y.parse().unwrap(),
     };
-    let range = &pos - &beacon;
+    let range = pos.manhatten_dist(&beacon);
     (Sensor { pos, range }, Beacon(beacon))
 }
 
@@ -56,33 +54,14 @@ impl Sensor {
             Some((self.pos.x - overlap)..=(self.pos.x + overlap))
         }
     }
-
-    fn is_in_range(&self, p: &Point) -> bool {
-        (&self.pos - p) <= self.range
-    }
 }
 
 pub mod part1 {
     use super::*;
+    use std::collections::HashSet;
 
-    // use std::collections::HashSet;
-    // pub fn solution(s: &str, y_inspect: i32) -> usize {
-    //     let (sensors, beacons): (Vec<Sensor>, Vec<Beacon>) = s.lines().map(|l| parse(l)).unzip();
-    //     let mut s = sensors
-    //         .into_iter()
-    //         .flat_map(|s| s.x_idxs(y_inspect))
-    //         .collect::<HashSet<_>>();
-    //     beacons
-    //         .into_iter()
-    //         .map(|Beacon(Point { x, y })| (x, y))
-    //         .filter(|(_, y)| *y == y_inspect)
-    //         .for_each(|(x, _)| {
-    //             s.remove(&x);
-    //         });
-    //     s.len()
-    // }
     pub fn solution(s: &str, y_inspect: i32) -> i32 {
-        let (sensors, _): (Vec<Sensor>, Vec<Beacon>) = s.lines().map(parse).unzip();
+        let (sensors, beacons): (Vec<Sensor>, HashSet<Beacon>) = s.lines().map(parse).unzip();
         let mut ranges: Vec<_> = sensors.iter().filter_map(|s| s.x_idxs(y_inspect)).collect();
         ranges.sort_unstable_by_key(|r| *r.start());
         let mut ranges = ranges.into_iter();
@@ -92,7 +71,14 @@ pub mod part1 {
             let end = std::cmp::max(r.end(), merged_r.end());
             merged_r = *merged_r.start()..=*end;
         });
-        merged_r.end() - merged_r.start()
+
+        // `n_beacons == 1` for both inputs. Take it into account just for fun
+        let n_beacons = beacons
+            .into_iter()
+            .filter(|Beacon(Point { x, y })| *y == y_inspect && merged_r.contains(x))
+            .count() as i32;
+
+        merged_r.end() - merged_r.start() + 1 - n_beacons
     }
     #[test]
     fn sample() {
@@ -106,15 +92,14 @@ pub mod part1 {
 
 pub mod part2 {
     use super::*;
+    use std::cmp::max;
+
     pub fn solution(s: &str, max_coord: i32) -> i64 {
-        let (sensors, _): (Vec<Sensor>, Vec<Beacon>) = s.lines().map(parse).unzip();
+        let sensors: Vec<Sensor> = s.lines().map(parse).map(|(sensor, _)| sensor).collect();
         (0..=max_coord)
             .find_map(|y| {
-                let mut ranges: Vec<_> = sensors
-                    .iter()
-                    .filter_map(|s| s.x_idxs(y))
-                    .filter(|r| *r.end() + 1 > 0 || *r.start() <= y)
-                    .collect();
+                let mut ranges: Vec<_> = sensors.iter().filter_map(|s| s.x_idxs(y)).collect();
+                // Look for the gap. We could miss the gap if it was next to the borders
                 ranges.sort_unstable_by_key(|r| *r.start());
                 let mut last_end = i32::MIN;
                 ranges.iter().find_map(|r| {
@@ -122,7 +107,7 @@ pub mod part2 {
                         let x = last_end as i64 + 1;
                         Some(x * 4000000 + y as i64)
                     } else {
-                        last_end = std::cmp::max(*r.end(), last_end);
+                        last_end = max(*r.end(), last_end);
                         None
                     }
                 })
@@ -134,7 +119,7 @@ pub mod part2 {
         assert_eq!(solution(SAMPLE, 20), 56000011);
     }
     #[test]
-    // #[ignore = "slow"]
+    #[ignore = "slow"]
     fn actual() {
         assert_eq!(solution(INPUT, 4000000), 13543690671045);
     }
