@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::{
     collections::HashMap,
     fmt::Debug,
@@ -244,15 +245,36 @@ pub mod part2 {
 
     pub fn solution(s: &str) -> u32 {
         let valves = parse(s);
-        // valves
-        todo!()
+        let unvisited: Vec<Id> = valves
+            .clone()
+            .into_iter()
+            .map(|(k, _)| k)
+            .filter(|k| *k != START_ID)
+            .collect();
+        let mut max = 0;
+        let ceil_half = (unvisited.len() + 1) / 2;
+        for n_elephant in 0..=ceil_half {
+            unvisited
+                .clone()
+                .into_iter()
+                .combinations(n_elephant)
+                .for_each(|x| {
+                    let mut my_unvisited = unvisited.clone();
+                    my_unvisited.retain(|k| !x.contains(k));
+                    let my_max = start_iteration(&valves, my_unvisited, 26);
+                    let eleph_max = start_iteration(&valves, x, 26);
+                    max = std::cmp::max(my_max + eleph_max, max);
+                })
+        }
+        max
     }
     #[test]
     fn sample() {
         assert_eq!(solution(SAMPLE), 1707);
     }
-    // #[test]
-    // fn actual() {
-    //     assert_eq!(solution(INPUT), 0);
-    // }
+    #[test]
+    #[ignore = "slow"]
+    fn actual() {
+        assert_eq!(solution(INPUT), 2520);
+    }
 }
