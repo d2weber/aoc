@@ -82,8 +82,8 @@ fn d15(c: &mut Criterion) {
 }
 
 fn d16(c: &mut Criterion) {
-    use d16::{part1::solution, SAMPLE};
-    c.bench_function("d16", |b| b.iter(|| solution(black_box(SAMPLE))));
+    use d16::{part1::solution, INPUT};
+    c.bench_function("d16", |b| b.iter(|| solution(black_box(INPUT))));
 }
 
 criterion_group!(

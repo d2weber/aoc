@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use std::{
     collections::HashMap,
     fmt::Debug,
@@ -152,11 +151,52 @@ fn parse(s: &str) -> ValveMap {
             .collect();
     }
     panic!("Too many steps");
-    // distances.valves
 }
 
 const N_STEPS: u32 = 30;
 const START_ID: Id = Id([b'A', b'A']);
+
+struct NextArgs {
+    current: Id,
+    unvisited: Vec<Id>,
+    steps_left: u32,
+    total_flow: u32,
+}
+
+fn next(
+    NextArgs {
+        current,
+        unvisited,
+        steps_left,
+        total_flow,
+    }: NextArgs,
+    valves: &ValveMap,
+    max_flow: &mut u32,
+) -> Vec<NextArgs> {
+    unvisited
+        .iter()
+        .enumerate()
+        .filter_map(|(i, next)| {
+            let Some(steps_left) = steps_left.checked_sub(
+                valves[&current].distances[&next] /* time to walk */
+                 + 1, /* time to open the valve */
+            ) else {
+                return None;
+            };
+            let total_flow = total_flow + valves[&next].flow_rate * steps_left;
+            *max_flow = std::cmp::max(total_flow, *max_flow);
+
+            let mut unvisited = unvisited.clone();
+            unvisited.swap_remove(i);
+            Some(NextArgs {
+                current: *next,
+                unvisited,
+                steps_left,
+                total_flow,
+            })
+        })
+        .collect()
+}
 
 pub mod part1 {
     use super::*;
@@ -164,57 +204,33 @@ pub mod part1 {
     pub fn solution(s: &str) -> u32 {
         let mut valves = parse(s);
         valves.retain(|k, v| *k == START_ID || v.flow_rate > 0);
-        let k = valves.len();
-        valves
-            .iter()
-            .filter(|(k, _)| **k != START_ID)
-            .permutations(k - 1)
-            .map(|mut x| {
-                let mut last_k = None;
-                let mut total = 0;
-                x.retain(|(k, v)| {
-                    if total > N_STEPS {
-                        false
-                    } else {
-                        if let Some(lk) = last_k {
-                            total += v.distances[lk];
-                        }
-                        last_k = Some(k);
-                        true
-                    }
-                });
-                x
-            })
-            .dedup()
-            .map(|x| {
-                // dbg! {&x};
-                let mut last_valve = Id([b'A', b'A']);
-                x.iter()
-                    .scan(N_STEPS, |steps_left, (id, valve)| {
-                        // dbg!(last_valve, id);
-                        if let Some(next_steps_left) = steps_left.checked_sub(
-                            valves[&last_valve].distances[*id] /* time to walk */
-                     + 1, /* time to open the valve */
-                        ) {
-                            *steps_left = next_steps_left;
-                        } else {
-                            return None;
-                        };
-                        last_valve = **id;
-                        // dbg!(valve.flow_rate, &steps_left);
-                        Some(valve.flow_rate * (*steps_left))
-                    })
-                    .sum()
-            })
-            .max()
-            .unwrap()
+
+        let mut args = vec![NextArgs {
+            current: START_ID,
+            unvisited: valves
+                .clone()
+                .into_iter()
+                .map(|(k, _)| k)
+                .filter(|k| *k != START_ID)
+                .collect(),
+            steps_left: N_STEPS,
+            total_flow: 0,
+        }];
+        let mut max_flow = 0;
+        while !args.is_empty() {
+            args = args
+                .into_iter()
+                .flat_map(|a| next(a, &valves, &mut max_flow))
+                .collect();
+        }
+        max_flow
     }
     #[test]
     fn sample() {
         assert_eq!(solution(SAMPLE), 1651);
     }
-    // #[test]
-    // fn actual() {
-    //     assert_eq!(solution(INPUT), 0);
-    // }
+    #[test]
+    fn actual() {
+        assert_eq!(solution(INPUT), 1880);
+    }
 }
