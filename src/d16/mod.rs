@@ -1,6 +1,7 @@
 use itertools::Itertools;
+use nohash_hasher::IntMap;
 use std::{
-    collections::HashMap,
+    // collections::HashMap,
     fmt::Debug,
     ops::{Deref, DerefMut},
 };
@@ -8,46 +9,59 @@ use std::{
 pub const SAMPLE: &str = include_str!("sample");
 pub const INPUT: &str = include_str!("input");
 
-#[derive(Eq, Hash, PartialEq, Clone, Copy)]
-struct Id([u8; 2]);
+#[derive(Eq, PartialEq, Clone, Copy)]
+struct Id(u16);
 
-impl From<&[u8]> for Id {
-    fn from(value: &[u8]) -> Self {
-        Id(value.try_into().unwrap())
+impl std::hash::Hash for Id {
+    fn hash<H: std::hash::Hasher>(&self, hasher: &mut H) {
+        hasher.write_u16(self.0)
+    }
+}
+
+impl nohash_hasher::IsEnabled for Id {}
+
+impl Id {
+    fn new(value: &str) -> Self {
+        assert_eq!(value.len(), 2);
+        Self::new_unchecked(value)
+    }
+    const fn new_unchecked(value: &str) -> Self {
+        let value = value.as_bytes();
+        Id(value[0] as u16 | (value[1] as u16) << 8)
+    }
+}
+
+impl From<&str> for Id {
+    fn from(value: &str) -> Self {
+        assert_eq!(value.len(), 2);
+        Id::new(value)
     }
 }
 
 impl Debug for Id {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(std::str::from_utf8(&self.0).unwrap())
+        let a = (self.0 & 0xFF) as u8;
+        let b = (self.0 >> 8) as u8; // & 0xFF;
+        f.write_str(std::str::from_utf8(&[a, b]).unwrap())
     }
 }
 
-impl Deref for Id {
-    type Target = [u8; 2];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for Id {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
+#[test]
+fn id_debug() {
+    assert_eq!(format!("{:?}", Id::new("AZ")), "AZ")
 }
 
 #[derive(Debug)]
-struct ValveMap(HashMap<Id, Valve>);
+struct ValveMap(IntMap<Id, Valve>);
 
 impl FromIterator<(Id, Valve)> for ValveMap {
     fn from_iter<T: IntoIterator<Item = (Id, Valve)>>(iter: T) -> Self {
-        Self(HashMap::from_iter(iter))
+        Self(IntMap::from_iter(iter))
     }
 }
 
 impl Deref for ValveMap {
-    type Target = HashMap<Id, Valve>;
+    type Target = IntMap<Id, Valve>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -63,7 +77,7 @@ impl DerefMut for ValveMap {
 #[derive(Clone, Debug, PartialEq)]
 struct Valve {
     flow_rate: u32,
-    distances: HashMap<Id, u32>,
+    distances: IntMap<Id, u32>,
     direct_connections: Vec<Id>,
 }
 
@@ -111,7 +125,7 @@ fn parse(s: &str) -> ValveMap {
                 .split_once(" has flow rate=")
                 .unwrap();
 
-            let id: Id = id.as_bytes().into();
+            let id = Id::new(id);
             let (flow_rate, l) = l
                 .split_once("; tunnels lead to valves ")
                 .unwrap_or_else(|| l.split_once("; tunnel leads to valve ").unwrap());
@@ -119,8 +133,8 @@ fn parse(s: &str) -> ValveMap {
                 id,
                 Valve {
                     flow_rate: flow_rate.parse().unwrap(),
-                    direct_connections: l.split(", ").map(|v| v.as_bytes().into()).collect(),
-                    distances: HashMap::new(),
+                    direct_connections: l.split(", ").map(|v| Id::new(v)).collect(),
+                    distances: IntMap::default(),
                 },
             )
         })
@@ -152,7 +166,7 @@ fn parse(s: &str) -> ValveMap {
     return valves;
 }
 
-const START_ID: Id = Id([b'A', b'A']);
+const START_ID: Id = Id::new_unchecked("AA");
 
 struct NextArgs {
     current: Id,
@@ -258,12 +272,18 @@ pub mod part2 {
                 .clone()
                 .into_iter()
                 .combinations(n_elephant)
-                .for_each(|x| {
-                    let mut my_unvisited = unvisited.clone();
-                    my_unvisited.retain(|k| !x.contains(k));
-                    let my_max = start_iteration(&valves, my_unvisited, 26);
-                    let eleph_max = start_iteration(&valves, x, 26);
-                    max = std::cmp::max(my_max + eleph_max, max);
+                .for_each(|unvisited_el| {
+                    let max_my = start_iteration(
+                        &valves,
+                        unvisited
+                            .clone()
+                            .into_iter()
+                            .filter(|k| !unvisited_el.contains(k))
+                            .collect(),
+                        26,
+                    );
+                    let max_el = start_iteration(&valves, unvisited_el, 26);
+                    max = std::cmp::max(max_my + max_el, max);
                 })
         }
         max
@@ -273,7 +293,7 @@ pub mod part2 {
         assert_eq!(solution(SAMPLE), 1707);
     }
     #[test]
-    #[ignore = "slow"]
+    // #[ignore = "slow"]
     fn actual() {
         assert_eq!(solution(INPUT), 2520);
     }
