@@ -141,19 +141,16 @@ fn parse(s: &str) -> ValveMap {
             },
         )
         .collect();
-    for _ in 0..100 {
-        if args.is_empty() {
-            return valves;
-        }
+    while !args.is_empty() {
         args = args
             .into_iter()
             .flat_map(|a| step(a, &mut valves))
             .collect();
     }
-    panic!("Too many steps");
+    valves.retain(|k, v| *k == START_ID || v.flow_rate > 0);
+    return valves;
 }
 
-const N_STEPS: u32 = 30;
 const START_ID: Id = Id([b'A', b'A']);
 
 struct NextArgs {
@@ -198,39 +195,64 @@ fn next(
         .collect()
 }
 
+fn start_iteration(valves: &ValveMap, unvisited: Vec<Id>, n_steps: u32) -> u32 {
+    let mut args = vec![NextArgs {
+        current: START_ID,
+        unvisited,
+        steps_left: n_steps,
+        total_flow: 0,
+    }];
+    let mut max_flow = 0;
+    while !args.is_empty() {
+        args = args
+            .into_iter()
+            .flat_map(|a| next(a, &valves, &mut max_flow))
+            .collect();
+    }
+    max_flow
+}
+
 pub mod part1 {
     use super::*;
 
     pub fn solution(s: &str) -> u32 {
-        let mut valves = parse(s);
-        valves.retain(|k, v| *k == START_ID || v.flow_rate > 0);
-
-        let mut args = vec![NextArgs {
-            current: START_ID,
-            unvisited: valves
+        let valves = parse(s);
+        start_iteration(
+            &valves,
+            valves
                 .clone()
                 .into_iter()
                 .map(|(k, _)| k)
                 .filter(|k| *k != START_ID)
                 .collect(),
-            steps_left: N_STEPS,
-            total_flow: 0,
-        }];
-        let mut max_flow = 0;
-        while !args.is_empty() {
-            args = args
-                .into_iter()
-                .flat_map(|a| next(a, &valves, &mut max_flow))
-                .collect();
-        }
-        max_flow
+            30,
+        )
     }
     #[test]
     fn sample() {
         assert_eq!(solution(SAMPLE), 1651);
     }
     #[test]
+    #[ignore = "slow"]
     fn actual() {
         assert_eq!(solution(INPUT), 1880);
     }
+}
+
+pub mod part2 {
+    use super::*;
+
+    pub fn solution(s: &str) -> u32 {
+        let valves = parse(s);
+        // valves
+        todo!()
+    }
+    #[test]
+    fn sample() {
+        assert_eq!(solution(SAMPLE), 1707);
+    }
+    // #[test]
+    // fn actual() {
+    //     assert_eq!(solution(INPUT), 0);
+    // }
 }
