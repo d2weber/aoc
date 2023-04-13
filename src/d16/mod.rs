@@ -1,7 +1,6 @@
 use itertools::Itertools;
-use nohash_hasher::IntMap;
 use std::{
-    // collections::HashMap,
+    collections::HashMap,
     fmt::Debug,
     ops::{Deref, DerefMut},
 };
@@ -9,16 +8,8 @@ use std::{
 pub const SAMPLE: &str = include_str!("sample");
 pub const INPUT: &str = include_str!("input");
 
-#[derive(Eq, PartialEq, Clone, Copy)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy)]
 struct Id(u16);
-
-impl std::hash::Hash for Id {
-    fn hash<H: std::hash::Hasher>(&self, hasher: &mut H) {
-        hasher.write_u16(self.0)
-    }
-}
-
-impl nohash_hasher::IsEnabled for Id {}
 
 impl Id {
     fn new(value: &str) -> Self {
@@ -52,16 +43,16 @@ fn id_debug() {
 }
 
 #[derive(Debug)]
-struct ValveMap(IntMap<Id, Valve>);
+struct ValveMap(HashMap<Id, Valve>);
 
 impl FromIterator<(Id, Valve)> for ValveMap {
     fn from_iter<T: IntoIterator<Item = (Id, Valve)>>(iter: T) -> Self {
-        Self(IntMap::from_iter(iter))
+        Self(HashMap::from_iter(iter))
     }
 }
 
 impl Deref for ValveMap {
-    type Target = IntMap<Id, Valve>;
+    type Target = HashMap<Id, Valve>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -77,7 +68,7 @@ impl DerefMut for ValveMap {
 #[derive(Clone, Debug, PartialEq)]
 struct Valve {
     flow_rate: u32,
-    distances: IntMap<Id, u32>,
+    distances: HashMap<Id, u32>,
     direct_connections: Vec<Id>,
 }
 
@@ -134,7 +125,7 @@ fn parse(s: &str) -> ValveMap {
                 Valve {
                     flow_rate: flow_rate.parse().unwrap(),
                     direct_connections: l.split(", ").map(|v| Id::new(v)).collect(),
-                    distances: IntMap::default(),
+                    distances: HashMap::default(),
                 },
             )
         })
@@ -293,7 +284,7 @@ pub mod part2 {
         assert_eq!(solution(SAMPLE), 1707);
     }
     #[test]
-    // #[ignore = "slow"]
+    #[ignore = "slow"]
     fn actual() {
         assert_eq!(solution(INPUT), 2520);
     }
