@@ -124,7 +124,7 @@ fn parse(s: &str) -> ValveMap {
                 id,
                 Valve {
                     flow_rate: flow_rate.parse().unwrap(),
-                    direct_connections: l.split(", ").map(|v| Id::new(v)).collect(),
+                    direct_connections: l.split(", ").map(Id::new).collect(),
                     distances: HashMap::default(),
                 },
             )
@@ -154,7 +154,7 @@ fn parse(s: &str) -> ValveMap {
             .collect();
     }
     valves.retain(|k, v| *k == START_ID || v.flow_rate > 0);
-    return valves;
+    valves
 }
 
 const START_ID: Id = Id::new_unchecked("AA");
@@ -166,7 +166,7 @@ struct NextArgs {
     total_flow: u32,
 }
 
-fn next(
+fn find_max(
     NextArgs {
         current,
         unvisited,
@@ -175,47 +175,30 @@ fn next(
     }: NextArgs,
     valves: &ValveMap,
     max_flow: &mut u32,
-) -> Vec<NextArgs> {
-    unvisited
-        .iter()
-        .enumerate()
-        .filter_map(|(i, next)| {
-            let Some(steps_left) = steps_left.checked_sub(
-                valves[&current].distances[&next] /* time to walk */
-                 + 1, /* time to open the valve */
-            ) else {
-                return None;
+) {
+    unvisited.iter().enumerate().for_each(|(i, next)| {
+        let Some(steps_left) = steps_left.checked_sub(
+                valves[&current].distances[next] /* time to walk */
+                 + 1 /* time to open the valve */
+            ).filter(|&steps_left| steps_left != 0) else {
+                return;
             };
-            let total_flow = total_flow + valves[&next].flow_rate * steps_left;
-            *max_flow = std::cmp::max(total_flow, *max_flow);
+        let total_flow = total_flow + valves[next].flow_rate * steps_left;
+        *max_flow = std::cmp::max(total_flow, *max_flow);
 
-            let mut unvisited = unvisited.clone();
-            unvisited.swap_remove(i);
-            Some(NextArgs {
+        let mut unvisited = unvisited.clone();
+        unvisited.swap_remove(i);
+        find_max(
+            NextArgs {
                 current: *next,
                 unvisited,
                 steps_left,
                 total_flow,
-            })
-        })
-        .collect()
-}
-
-fn start_iteration(valves: &ValveMap, unvisited: Vec<Id>, n_steps: u32) -> u32 {
-    let mut args = vec![NextArgs {
-        current: START_ID,
-        unvisited,
-        steps_left: n_steps,
-        total_flow: 0,
-    }];
-    let mut max_flow = 0;
-    while !args.is_empty() {
-        args = args
-            .into_iter()
-            .flat_map(|a| next(a, &valves, &mut max_flow))
-            .collect();
-    }
-    max_flow
+            },
+            valves,
+            max_flow,
+        );
+    });
 }
 
 pub mod part1 {
@@ -223,16 +206,22 @@ pub mod part1 {
 
     pub fn solution(s: &str) -> u32 {
         let valves = parse(s);
-        start_iteration(
+        let mut total_flow = 0;
+        find_max(
+            NextArgs {
+                current: START_ID,
+                unvisited: valves
+                    .clone()
+                    .into_keys()
+                    .filter(|k| *k != START_ID)
+                    .collect(),
+                steps_left: 30,
+                total_flow: 0,
+            },
             &valves,
-            valves
-                .clone()
-                .into_iter()
-                .map(|(k, _)| k)
-                .filter(|k| *k != START_ID)
-                .collect(),
-            30,
-        )
+            &mut total_flow,
+        );
+        total_flow
     }
     #[test]
     fn sample() {
@@ -252,29 +241,42 @@ pub mod part2 {
         let valves = parse(s);
         let unvisited: Vec<Id> = valves
             .clone()
-            .into_iter()
-            .map(|(k, _)| k)
+            .into_keys()
             .filter(|k| *k != START_ID)
             .collect();
         let mut max = 0;
-        let ceil_half = (unvisited.len() + 1) / 2;
-        for n_elephant in 0..=ceil_half {
+        for n_elephant in 0..=(unvisited.len() / 2) {
             unvisited
                 .clone()
                 .into_iter()
                 .combinations(n_elephant)
                 .for_each(|unvisited_el| {
-                    let max_my = start_iteration(
+                    let mut curr_max = 0;
+                    find_max(
+                        NextArgs {
+                            current: START_ID,
+                            unvisited: unvisited
+                                .clone()
+                                .into_iter()
+                                .filter(|k| !unvisited_el.contains(k))
+                                .collect(),
+                            steps_left: 26,
+                            total_flow: 0,
+                        },
                         &valves,
-                        unvisited
-                            .clone()
-                            .into_iter()
-                            .filter(|k| !unvisited_el.contains(k))
-                            .collect(),
-                        26,
+                        &mut curr_max,
                     );
-                    let max_el = start_iteration(&valves, unvisited_el, 26);
-                    max = std::cmp::max(max_my + max_el, max);
+                    find_max(
+                        NextArgs {
+                            current: START_ID,
+                            unvisited: unvisited_el,
+                            steps_left: 26,
+                            total_flow: curr_max,
+                        },
+                        &valves,
+                        &mut curr_max,
+                    );
+                    max = std::cmp::max(curr_max, max);
                 })
         }
         max
