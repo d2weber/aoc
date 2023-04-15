@@ -1,3 +1,5 @@
+///! This solution was made ugly to experiment with certain optimizations.
+///!
 use itertools::Itertools;
 use std::{
     collections::HashMap,
@@ -8,7 +10,7 @@ use std::{
 pub const SAMPLE: &str = include_str!("sample");
 pub const INPUT: &str = include_str!("input");
 
-#[derive(Eq, PartialEq, Hash, Clone, Copy)]
+#[derive(Eq, PartialEq, Hash, Clone, Copy, Ord, PartialOrd)]
 struct Id(u16);
 
 impl Id {
@@ -176,20 +178,99 @@ fn find_max(
     valves: &ValveMap,
     max_flow: &mut u32,
 ) {
+    let indices: HashMap<Id, usize> = valves
+        .0
+        .keys()
+        .sorted_unstable()
+        .cloned()
+        .zip(0..)
+        .collect();
+    let ids: HashMap<usize, Id> = valves
+        .0
+        .keys()
+        .sorted_unstable()
+        .cloned()
+        .enumerate()
+        .collect();
+    let u = unvisited.into_iter().map(|k| indices[&k]).collect();
+    let v = valves
+        .0
+        .iter()
+        .sorted_unstable_by_key(|(k, _)| *k)
+        .enumerate()
+        .inspect(|(i, (k, _))| {
+            assert_eq!(*i, indices[k]);
+        })
+        .map(
+            |(
+                _,
+                (
+                    _,
+                    Valve {
+                        flow_rate,
+                        distances,
+                        ..
+                    },
+                ),
+            )| {
+                _Valve {
+                    flow_rate: *flow_rate,
+                    distances: (0..ids.len())
+                        .map(|i| *distances.get(&ids[&i]).unwrap_or(&0u32))
+                        .collect(),
+                }
+            },
+        )
+        .collect();
+    _find_max(
+        _NextArgs {
+            current: indices[&current],
+            unvisited: u,
+            steps_left,
+            total_flow,
+        },
+        &v,
+        max_flow,
+    );
+}
+
+#[derive(Clone, Debug)]
+struct _Valve {
+    flow_rate: u32,
+    distances: Vec<u32>,
+}
+
+struct _NextArgs {
+    current: usize,
+    unvisited: Vec<usize>,
+    steps_left: u32,
+    total_flow: u32,
+}
+
+fn _find_max(
+    _NextArgs {
+        current,
+        unvisited,
+        steps_left,
+        total_flow,
+    }: _NextArgs,
+    valves: &Vec<_Valve>,
+    max_flow: &mut u32,
+) {
     unvisited.iter().enumerate().for_each(|(i, next)| {
         let Some(steps_left) = steps_left.checked_sub(
-                valves[&current].distances[next] /* time to walk */
+                valves[current].distances[*next] /* time to walk */
                  + 1 /* time to open the valve */
             ).filter(|&steps_left| steps_left != 0) else {
                 return;
             };
-        let total_flow = total_flow + valves[next].flow_rate * steps_left;
+        let total_flow = total_flow + valves[*next].flow_rate * steps_left;
         *max_flow = std::cmp::max(total_flow, *max_flow);
 
         let mut unvisited = unvisited.clone();
         unvisited.swap_remove(i);
-        find_max(
-            NextArgs {
+        _find_max(
+            _NextArgs {
                 current: *next,
                 unvisited,
                 steps_left,
