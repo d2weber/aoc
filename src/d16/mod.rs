@@ -1,6 +1,7 @@
 ///! This solution was made ugly to experiment with certain optimizations.
 ///!
 use itertools::Itertools;
+use std::collections::BTreeSet;
 use std::{
     collections::HashMap,
     fmt::Debug,
@@ -176,6 +177,7 @@ fn find_max(
         total_flow,
     }: NextArgs,
     valves: &ValveMap,
+    memory: &mut HashMap<BTreeSet<usize>, u32>,
     max_flow: &mut u32,
 ) {
     let indices: HashMap<Id, usize> = valves
@@ -230,6 +232,7 @@ fn find_max(
             total_flow,
         },
         &v,
+        memory,
         max_flow,
     );
 }
@@ -255,8 +258,12 @@ fn _find_max(
         total_flow,
     }: _NextArgs,
     valves: &Vec<_Valve>,
+    memory: &mut HashMap<BTreeSet<usize>, u32>,
     max_flow: &mut u32,
 ) {
+    let k = BTreeSet::from_iter(unvisited.clone().into_iter());
+    let f = *memory.get(&k).unwrap_or(&0).max(&total_flow);
+    memory.insert(k, f);
     unvisited.iter().enumerate().for_each(|(i, next)| {
         let Some(steps_left) = steps_left.checked_sub(
                 valves[current].distances[*next] /* time to walk */
@@ -277,6 +284,7 @@ fn _find_max(
                 total_flow,
             },
             valves,
+            memory,
             max_flow,
         );
     });
@@ -288,6 +296,7 @@ pub mod part1 {
     pub fn solution(s: &str) -> u32 {
         let valves = parse(s);
         let mut total_flow = 0;
+        let mut memory = HashMap::new();
         find_max(
             NextArgs {
                 current: START_ID,
@@ -300,6 +309,7 @@ pub mod part1 {
                 total_flow: 0,
             },
             &valves,
+            &mut memory,
             &mut total_flow,
         );
         total_flow
@@ -325,42 +335,44 @@ pub mod part2 {
             .into_keys()
             .filter(|k| *k != START_ID)
             .collect();
+        let mut _max = 0;
+        let mut memory = HashMap::new();
         let mut max = 0;
-        for n_elephant in 0..=(unvisited.len() / 2) {
-            unvisited
-                .clone()
-                .into_iter()
-                .combinations(n_elephant)
-                .for_each(|unvisited_el| {
-                    let mut curr_max = 0;
-                    find_max(
-                        NextArgs {
-                            current: START_ID,
-                            unvisited: unvisited
-                                .clone()
-                                .into_iter()
-                                .filter(|k| !unvisited_el.contains(k))
-                                .collect(),
-                            steps_left: 26,
-                            total_flow: 0,
-                        },
-                        &valves,
-                        &mut curr_max,
-                    );
-                    find_max(
-                        NextArgs {
-                            current: START_ID,
-                            unvisited: unvisited_el,
-                            steps_left: 26,
-                            total_flow: curr_max,
-                        },
-                        &valves,
-                        &mut curr_max,
-                    );
-                    max = std::cmp::max(curr_max, max);
+        find_max(
+            NextArgs {
+                current: START_ID,
+                unvisited: unvisited.clone(),
+                steps_left: 26,
+                total_flow: 0,
+            },
+            &valves,
+            &mut memory,
+            &mut max,
+        );
+        let indices: HashMap<Id, usize> = valves
+            .0
+            .keys()
+            .sorted_unstable()
+            .cloned()
+            .zip(0..)
+            .collect();
+        let unvisited: Vec<usize> = unvisited.into_iter().map(|k| indices[&k]).collect();
+        memory
+            .iter()
+            .flat_map(|(my_unvisited, my_max)| {
+                memory.iter().filter_map(|(el_unvisited, el_max)| {
+                    if unvisited
+                        .iter()
+                        .all(|u| my_unvisited.contains(u) | el_unvisited.contains(u))
+                    {
+                        Some(*my_max + *el_max)
+                    } else {
+                        None
+                    }
                 })
-        }
-        max
+            })
+            .max()
+            .unwrap()
     }
     #[test]
     fn sample() {
