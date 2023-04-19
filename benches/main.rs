@@ -86,7 +86,13 @@ fn d16(c: &mut Criterion) {
     c.bench_function("d16", |b| b.iter(|| solution(black_box(INPUT))));
 }
 
+fn d17(c: &mut Criterion) {
+    use d17::{part1::solution, INPUT};
+    c.bench_function("d17", |b| b.iter(|| solution(black_box(INPUT))));
+}
+
 criterion_group!(
-    benches, d01, d02, d03, d04, d05, d06, d07, d08, d09, d10, d11, d12, d13, d14, d15, d16
+    benches, d01, d02, d03, d04, d05, d06, d07, d08, d09, d10, d11, d12, //
+    d13, d14, d15, d16, d17
 );
 criterion_main!(benches);
