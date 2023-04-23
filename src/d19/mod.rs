@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Sub};
+use std::ops::Add;
 
 pub const SAMPLE: &str = include_str!("sample");
 pub const INPUT: &str = include_str!("input");
@@ -31,19 +31,6 @@ impl Resources {
     }
 }
 
-impl Sub for Resources {
-    type Output = Resources;
-
-    fn sub(self, rhs: Self) -> Self::Output {
-        Resources {
-            ore: self.ore - rhs.ore,
-            clay: self.clay - rhs.clay,
-            obsidian: self.obsidian - rhs.obsidian,
-            geode: self.geode - rhs.geode,
-        }
-    }
-}
-
 impl Add for Resources {
     type Output = Resources;
 
@@ -54,15 +41,6 @@ impl Add for Resources {
             obsidian: self.obsidian + rhs.obsidian,
             geode: self.geode + rhs.geode,
         }
-    }
-}
-
-impl AddAssign for Resources {
-    fn add_assign(&mut self, rhs: Self) {
-        self.ore += rhs.ore;
-        self.clay += rhs.clay;
-        self.obsidian += rhs.obsidian;
-        self.geode += rhs.geode;
     }
 }
 
@@ -106,10 +84,30 @@ fn parse<'a>(lines: impl Iterator<Item = &'a str>) -> Vec<Blueprint> {
         .collect()
 }
 
-fn max_geodes(
-    bp: &Blueprint,
+#[derive(Clone)]
+struct State {
     inventory: Resources,
     n_robots: Resources,
+}
+
+impl State {
+    fn new() -> Self {
+        Self {
+            inventory: Default::default(),
+            n_robots: Resources {
+                ore: 1,
+                ..Default::default()
+            },
+        }
+    }
+}
+
+fn max_geodes(
+    bp: &Blueprint,
+    State {
+        inventory,
+        n_robots,
+    }: State,
     minutes_left: u32,
     skip_clay: bool,
     skip_ore: bool,
@@ -120,12 +118,14 @@ fn max_geodes(
     if let Some(g) = inventory.checked_sub(&bp.geode_robot).map(|inven| {
         max_geodes(
             bp,
-            inven + n_robots.clone(),
-            n_robots.clone()
-                + Resources {
-                    geode: 1,
-                    ..Default::default()
-                },
+            State {
+                inventory: inven + n_robots.clone(),
+                n_robots: n_robots.clone()
+                    + Resources {
+                        geode: 1,
+                        ..Default::default()
+                    },
+            },
             minutes_left - 1,
             false,
             false,
@@ -134,32 +134,42 @@ fn max_geodes(
         return g;
     }
 
-    let buy_obsidian = inventory.checked_sub(&bp.obsidian_robot).map(|inven| {
-        max_geodes(
-            bp,
-            inven + n_robots.clone(),
-            n_robots.clone()
-                + Resources {
-                    obsidian: 1,
-                    ..Default::default()
-                },
-            minutes_left - 1,
-            false,
-            false,
-        )
-    });
-    let buy_clay = inventory
-        .checked_sub(&bp.clay_robot)
-        .filter(|_| !skip_clay)
+    let buy_obsidian = inventory
+        .checked_sub(&bp.obsidian_robot)
+        .filter(|_| minutes_left > 3)
         .map(|inven| {
             max_geodes(
                 bp,
-                inven + n_robots.clone(),
-                n_robots.clone()
-                    + Resources {
-                        clay: 1,
-                        ..Default::default()
-                    },
+                State {
+                    inventory: inven + n_robots.clone(),
+                    n_robots: n_robots.clone()
+                        + Resources {
+                            obsidian: 1,
+                            ..Default::default()
+                        },
+                },
+                minutes_left - 1,
+                false,
+                false,
+            )
+        });
+
+    let buy_clay = inventory
+        .checked_sub(&bp.clay_robot)
+        .filter(
+            |_| !skip_clay && minutes_left > 5, /*improbable to improve when buying late*/
+        )
+        .map(|inven| {
+            max_geodes(
+                bp,
+                State {
+                    inventory: inven + n_robots.clone(),
+                    n_robots: n_robots.clone()
+                        + Resources {
+                            clay: 1,
+                            ..Default::default()
+                        },
+                },
                 minutes_left - 1,
                 false,
                 false,
@@ -172,32 +182,39 @@ fn max_geodes(
 
     let buy_ore = inventory
         .checked_sub(&bp.ore_robot)
-        .filter(|_| !skip_ore)
+        .filter(
+            |_| !skip_ore && minutes_left > 9, /*improbable to improve when buying late*/
+        )
         .map(|inven| {
             max_geodes(
                 bp,
-                inven + n_robots.clone(),
-                n_robots.clone()
-                    + Resources {
-                        ore: 1,
-                        ..Default::default()
-                    },
+                State {
+                    inventory: inven + n_robots.clone(),
+                    n_robots: n_robots.clone()
+                        + Resources {
+                            ore: 1,
+                            ..Default::default()
+                        },
+                },
                 minutes_left - 1,
                 false,
                 false,
             )
         });
 
-    max_geodes(
-        bp,
-        inventory + n_robots.clone(),
-        n_robots.clone(),
-        minutes_left - 1,
-        buy_clay.is_some(),
-        buy_ore.is_some(),
-    )
-    .max(buy_clay.unwrap_or(0))
-    .max(buy_ore.unwrap_or(0))
+    buy_clay
+        .unwrap_or(0)
+        .max(buy_ore.unwrap_or(0))
+        .max(max_geodes(
+            bp,
+            State {
+                inventory: inventory + n_robots.clone(),
+                n_robots,
+            },
+            minutes_left - 1,
+            buy_clay.is_some(),
+            buy_ore.is_some(),
+        ))
 }
 
 pub mod part1 {
@@ -206,19 +223,7 @@ pub mod part1 {
     pub fn solution(s: &str) -> u32 {
         let bps = parse(s.lines());
         bps.iter()
-            .map(|bp| {
-                bp.n * max_geodes(
-                    bp,
-                    Resources::default(),
-                    Resources {
-                        ore: 1,
-                        ..Default::default()
-                    },
-                    24,
-                    false,
-                    false,
-                )
-            })
+            .map(|bp| bp.n * max_geodes(bp, State::new(), 24, false, false))
             .sum()
     }
     #[test]
@@ -237,19 +242,7 @@ pub mod part2 {
     pub fn solution(s: &str) -> u32 {
         let bps = parse(s.lines().take(3));
         bps.iter()
-            .map(|bp| {
-                max_geodes(
-                    bp,
-                    Resources::default(),
-                    Resources {
-                        ore: 1,
-                        ..Default::default()
-                    },
-                    32,
-                    false,
-                    false,
-                )
-            })
+            .map(|bp| max_geodes(bp, State::new(), 32, false, false))
             .product()
     }
     #[test]
