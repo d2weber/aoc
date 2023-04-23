@@ -108,79 +108,96 @@ fn parse<'a>(lines: impl Iterator<Item = &'a str>) -> Vec<Blueprint> {
 
 fn max_geodes(
     bp: &Blueprint,
-    mut inventory: Resources,
+    inventory: Resources,
     n_robots: Resources,
     minutes_left: u32,
-    mut skip_ore: bool,
-    mut skip_clay: bool,
+    skip_clay: bool,
+    skip_ore: bool,
 ) -> u32 {
     if minutes_left == 1 {
         return inventory.geode + n_robots.geode;
     }
-    let mut geodes = 0;
-    let new_robot = if let Some(inven) = inventory.checked_sub(&bp.geode_robot) {
-        inventory = inven;
-        skip_clay = false;
-        skip_ore = false;
-        Resources {
-            geode: 1,
-            ..Default::default()
-        }
-    } else if let Some(inven) = inventory.checked_sub(&bp.obsidian_robot) {
-        inventory = inven;
-        skip_clay = false;
-        skip_ore = false;
-        Resources {
-            obsidian: 1,
-            ..Default::default()
-        }
-    } else {
-        if !skip_clay {
-            if let Some(inven) = inventory.checked_sub(&bp.clay_robot) {
-                skip_ore = false;
-                geodes = geodes.max(max_geodes(
-                    bp,
-                    inven + n_robots.clone(),
-                    n_robots.clone()
-                        + Resources {
-                            clay: 1,
-                            ..Default::default()
-                        },
-                    minutes_left - 1,
-                    skip_ore,
-                    skip_clay,
-                ));
-                skip_clay = true;
-            }
-        }
-        if !skip_ore {
-            if let Some(inven) = inventory.checked_sub(&bp.ore_robot) {
-                skip_clay = false;
-                geodes = geodes.max(max_geodes(
-                    bp,
-                    inven + n_robots.clone(),
-                    n_robots.clone()
-                        + Resources {
-                            ore: 1,
-                            ..Default::default()
-                        },
-                    minutes_left - 1,
-                    skip_ore,
-                    skip_clay,
-                ));
-                skip_ore = true;
-            }
-        }
-        Resources::default()
-    };
-    geodes.max(max_geodes(
+    if let Some(g) = inventory.checked_sub(&bp.geode_robot).map(|inven| {
+        max_geodes(
+            bp,
+            inven + n_robots.clone(),
+            n_robots.clone()
+                + Resources {
+                    geode: 1,
+                    ..Default::default()
+                },
+            minutes_left - 1,
+            false,
+            false,
+        )
+    }) {
+        return g;
+    }
+
+    let buy_obsidian = inventory.checked_sub(&bp.obsidian_robot).map(|inven| {
+        max_geodes(
+            bp,
+            inven + n_robots.clone(),
+            n_robots.clone()
+                + Resources {
+                    obsidian: 1,
+                    ..Default::default()
+                },
+            minutes_left - 1,
+            false,
+            false,
+        )
+    });
+    let buy_clay = inventory
+        .checked_sub(&bp.clay_robot)
+        .filter(|_| !skip_clay)
+        .map(|inven| {
+            max_geodes(
+                bp,
+                inven + n_robots.clone(),
+                n_robots.clone()
+                    + Resources {
+                        clay: 1,
+                        ..Default::default()
+                    },
+                minutes_left - 1,
+                false,
+                false,
+            )
+        });
+
+    if let Some(buy_obsidian_geodes) = buy_obsidian {
+        return buy_obsidian_geodes.max(buy_clay.unwrap_or(0));
+    }
+
+    let buy_ore = inventory
+        .checked_sub(&bp.ore_robot)
+        .filter(|_| !skip_ore)
+        .map(|inven| {
+            max_geodes(
+                bp,
+                inven + n_robots.clone(),
+                n_robots.clone()
+                    + Resources {
+                        ore: 1,
+                        ..Default::default()
+                    },
+                minutes_left - 1,
+                false,
+                false,
+            )
+        });
+
+    max_geodes(
         bp,
         inventory + n_robots.clone(),
-        n_robots + new_robot,
+        n_robots.clone(),
         minutes_left - 1,
-        skip_ore,
-        skip_clay,
-    ))
+        buy_clay.is_some(),
+        buy_ore.is_some(),
+    )
+    .max(buy_clay.unwrap_or(0))
+    .max(buy_ore.unwrap_or(0))
 }
 
 pub mod part1 {
@@ -201,9 +218,6 @@ pub mod part1 {
                     false,
                     false,
                 )
-            })
-            .inspect(|q| {
-                dbg!(q);
             })
             .sum()
     }
@@ -236,17 +250,14 @@ pub mod part2 {
                     false,
                 )
             })
-            .inspect(|q| {
-                dbg!(q);
-            })
             .product()
     }
     #[test]
     fn sample() {
-        assert_eq!(solution(SAMPLE), 33);
+        assert_eq!(solution(SAMPLE), 3472);
     }
-    // #[test]
-    // fn actual() {
-    //     assert_eq!(solution(INPUT), 1382);
-    // }
+    #[test]
+    fn actual() {
+        assert_eq!(solution(INPUT), 31740);
+    }
 }
