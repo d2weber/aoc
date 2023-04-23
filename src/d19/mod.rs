@@ -1,220 +1,168 @@
-use std::ops::Add;
+use std::ops::{Add, Index, IndexMut};
 
 pub const SAMPLE: &str = include_str!("sample");
 pub const INPUT: &str = include_str!("input");
 
-#[derive(Debug)]
-struct Blueprint {
-    n: u32,
-    ore_robot: Resources,
-    clay_robot: Resources,
-    obsidian_robot: Resources,
-    geode_robot: Resources,
+#[derive(Clone, Copy)]
+enum Resource {
+    Ore,
+    Clay,
+    Obsidian,
+    Geode,
 }
 
-#[derive(Clone, Debug, Default)]
-struct Resources {
-    ore: u32,
-    clay: u32,
-    obsidian: u32,
-    geode: u32,
-}
+use Resource::*;
 
-impl Resources {
-    fn checked_sub(&self, other: &Self) -> Option<Self> {
-        Some(Resources {
-            ore: self.ore.checked_sub(other.ore)?,
-            clay: self.clay.checked_sub(other.clay)?,
-            obsidian: self.obsidian.checked_sub(other.obsidian)?,
-            geode: self.geode.checked_sub(other.geode)?,
-        })
+#[derive(Default, Clone)]
+struct Re<T>([T; 4]);
+
+impl<T> Index<Resource> for Re<T> {
+    type Output = T;
+
+    fn index(&self, index: Resource) -> &Self::Output {
+        &self.0[index as usize]
+    }
+}
+impl<T> IndexMut<Resource> for Re<T> {
+    fn index_mut(&mut self, index: Resource) -> &mut Self::Output {
+        &mut self.0[index as usize]
     }
 }
 
-impl Add for Resources {
-    type Output = Resources;
+impl Add<&Re<u32>> for Re<u32> {
+    type Output = Re<u32>;
 
-    fn add(self, rhs: Self) -> Self::Output {
-        Resources {
-            ore: self.ore + rhs.ore,
-            clay: self.clay + rhs.clay,
-            obsidian: self.obsidian + rhs.obsidian,
-            geode: self.geode + rhs.geode,
-        }
+    fn add(self, rhs: &Re<u32>) -> Self::Output {
+        // This notation is verbose but more performant
+        Re([
+            self.0[0] + rhs.0[0],
+            self.0[1] + rhs.0[1],
+            self.0[2] + rhs.0[2],
+            self.0[3] + rhs.0[3],
+        ])
     }
 }
+
+impl Re<u32> {
+    fn add_one(mut self, r: Resource) -> Self {
+        self[r] += 1;
+        self
+    }
+
+    fn checked_sub(&self, rhs: &Self) -> Option<Self> {
+        Some(Re([
+            self.0[0].checked_sub(rhs.0[0])?,
+            self.0[1].checked_sub(rhs.0[1])?,
+            self.0[2].checked_sub(rhs.0[2])?,
+            self.0[3].checked_sub(rhs.0[3])?,
+        ]))
+    }
+}
+
+type Blueprint = Re<Re<u32>>;
 
 fn parse<'a>(lines: impl Iterator<Item = &'a str>) -> Vec<Blueprint> {
     lines
         .map(|bp| {
-            let (n, s) = bp
+            let (_, s) = bp
                 .strip_prefix("Blueprint ")
                 .unwrap()
                 .split_once(": Each ore robot costs ")
                 .unwrap();
-            let n = n.parse().unwrap();
-            let (ore_robot_ore, s) = s.split_once(" ore. Each clay robot costs ").unwrap();
-            let (clay_robot_ore, s) = s.split_once(" ore. Each obsidian robot costs ").unwrap();
-            let (obsidian_robot_ore, s) = s.split_once(" ore and ").unwrap();
-            let (obsidian_robot_clay, s) = s.split_once(" clay. Each geode robot costs ").unwrap();
-            let (geode_robot_ore, s) = s.split_once(" ore and ").unwrap();
-            let geode_robot_obsidian = s.strip_suffix(" obsidian.").unwrap();
-            Blueprint {
-                n,
-                ore_robot: Resources {
-                    ore: ore_robot_ore.parse().unwrap(),
-                    ..Default::default()
-                },
-                clay_robot: Resources {
-                    ore: clay_robot_ore.parse().unwrap(),
-                    ..Default::default()
-                },
-                obsidian_robot: Resources {
-                    ore: obsidian_robot_ore.parse().unwrap(),
-                    clay: obsidian_robot_clay.parse().unwrap(),
-                    ..Default::default()
-                },
-                geode_robot: Resources {
-                    ore: geode_robot_ore.parse().unwrap(),
-                    obsidian: geode_robot_obsidian.parse().unwrap(),
-                    ..Default::default()
-                },
-            }
+            let mut bp: Blueprint = Default::default();
+            let (v, s) = s.split_once(" ore. Each clay robot costs ").unwrap();
+            bp[Ore][Ore] = v.parse().unwrap();
+            let (v, s) = s.split_once(" ore. Each obsidian robot costs ").unwrap();
+            bp[Clay][Ore] = v.parse().unwrap();
+            let (v, s) = s.split_once(" ore and ").unwrap();
+            bp[Obsidian][Ore] = v.parse().unwrap();
+            let (v, s) = s.split_once(" clay. Each geode robot costs ").unwrap();
+            bp[Obsidian][Clay] = v.parse().unwrap();
+            let (v, s) = s.split_once(" ore and ").unwrap();
+            bp[Geode][Ore] = v.parse().unwrap();
+            bp[Geode][Obsidian] = s.strip_suffix(" obsidian.").unwrap().parse().unwrap();
+            bp
         })
         .collect()
 }
 
 #[derive(Clone)]
-struct State {
-    inventory: Resources,
-    n_robots: Resources,
-}
-
-impl State {
-    fn new() -> Self {
-        Self {
-            inventory: Default::default(),
-            n_robots: Resources {
-                ore: 1,
-                ..Default::default()
-            },
-        }
-    }
-}
-
-fn max_geodes(
-    bp: &Blueprint,
-    State {
-        inventory,
-        n_robots,
-    }: State,
+struct State<'a> {
+    costs: &'a Blueprint,
+    inventory: Re<u32>,
+    n_robots: Re<u32>,
     minutes_left: u32,
     skip_clay: bool,
     skip_ore: bool,
-) -> u32 {
-    if minutes_left == 1 {
-        return inventory.geode + n_robots.geode;
-    }
-    if let Some(g) = inventory.checked_sub(&bp.geode_robot).map(|inven| {
-        max_geodes(
-            bp,
-            State {
-                inventory: inven + n_robots.clone(),
-                n_robots: n_robots.clone()
-                    + Resources {
-                        geode: 1,
-                        ..Default::default()
-                    },
-            },
-            minutes_left - 1,
-            false,
-            false,
-        )
-    }) {
-        return g;
+}
+
+impl<'a> State<'a> {
+    fn new(costs: &'a Blueprint, minutes_left: u32) -> State<'a> {
+        Self {
+            costs,
+            inventory: Default::default(),
+            n_robots: Re::<u32>::default().add_one(Ore),
+            minutes_left,
+            skip_clay: false,
+            skip_ore: false,
+        }
     }
 
-    let buy_obsidian = inventory
-        .checked_sub(&bp.obsidian_robot)
-        .filter(|_| minutes_left > 3)
-        .map(|inven| {
-            max_geodes(
-                bp,
-                State {
-                    inventory: inven + n_robots.clone(),
-                    n_robots: n_robots.clone()
-                        + Resources {
-                            obsidian: 1,
-                            ..Default::default()
-                        },
-                },
-                minutes_left - 1,
-                false,
-                false,
-            )
-        });
-
-    let buy_clay = inventory
-        .checked_sub(&bp.clay_robot)
-        .filter(
-            |_| !skip_clay && minutes_left > 5, /*improbable to improve when buying late*/
-        )
-        .map(|inven| {
-            max_geodes(
-                bp,
-                State {
-                    inventory: inven + n_robots.clone(),
-                    n_robots: n_robots.clone()
-                        + Resources {
-                            clay: 1,
-                            ..Default::default()
-                        },
-                },
-                minutes_left - 1,
-                false,
-                false,
-            )
-        });
-
-    if let Some(buy_obsidian_geodes) = buy_obsidian {
-        return buy_obsidian_geodes.max(buy_clay.unwrap_or(0));
+    fn buy(&self, r: Resource) -> Option<State> {
+        self.inventory.checked_sub(&self.costs[r]).map(|inv| State {
+            costs: self.costs,
+            inventory: inv + &self.n_robots,
+            n_robots: self.n_robots.clone().add_one(r),
+            minutes_left: self.minutes_left - 1,
+            skip_clay: false,
+            skip_ore: false,
+        })
     }
 
-    let buy_ore = inventory
-        .checked_sub(&bp.ore_robot)
-        .filter(
-            |_| !skip_ore && minutes_left > 9, /*improbable to improve when buying late*/
-        )
-        .map(|inven| {
-            max_geodes(
-                bp,
-                State {
-                    inventory: inven + n_robots.clone(),
-                    n_robots: n_robots.clone()
-                        + Resources {
-                            ore: 1,
-                            ..Default::default()
-                        },
-                },
-                minutes_left - 1,
-                false,
-                false,
-            )
-        });
+    fn buy_none(self, skip_clay: bool, skip_ore: bool) -> Self {
+        State {
+            costs: self.costs,
+            inventory: self.inventory + &self.n_robots,
+            n_robots: self.n_robots,
+            minutes_left: self.minutes_left - 1,
+            skip_clay,
+            skip_ore,
+        }
+    }
 
-    buy_clay
-        .unwrap_or(0)
-        .max(buy_ore.unwrap_or(0))
-        .max(max_geodes(
-            bp,
-            State {
-                inventory: inventory + n_robots.clone(),
-                n_robots,
-            },
-            minutes_left - 1,
-            buy_clay.is_some(),
-            buy_ore.is_some(),
-        ))
+    fn max_geodes(self) -> u32 {
+        if self.minutes_left == 1 {
+            return self.inventory[Geode] + self.n_robots[Geode];
+        }
+        if let Some(n) = self.buy(Geode).map(|s| s.max_geodes()) {
+            return n;
+        }
+
+        let buy_clay = Some(&self)
+            .filter(|s| !s.skip_clay)
+            .filter(|s| s.minutes_left > 5) // improbable to improve when buying late
+            .and_then(|s| s.buy(Clay))
+            .map(|s| s.max_geodes());
+
+        if let Some(n) = Some(&self)
+            .filter(|s| s.minutes_left > 3)
+            .and_then(|s| s.buy(Obsidian))
+            .map(|s| s.max_geodes())
+        {
+            return n.max(buy_clay.unwrap_or(0));
+        }
+
+        let buy_ore = Some(&self)
+            .filter(|s| !s.skip_ore)
+            .filter(|s| s.minutes_left > 9) // improbable to improve when buying late
+            .and_then(|s| s.buy(Ore))
+            .map(|s| s.max_geodes());
+
+        self.buy_none(buy_clay.is_some(), buy_ore.is_some())
+            .max_geodes()
+            .max(buy_clay.unwrap_or(0))
+            .max(buy_ore.unwrap_or(0))
+    }
 }
 
 pub mod part1 {
@@ -223,7 +171,8 @@ pub mod part1 {
     pub fn solution(s: &str) -> u32 {
         let bps = parse(s.lines());
         bps.iter()
-            .map(|bp| bp.n * max_geodes(bp, State::new(), 24, false, false))
+            .zip(1..)
+            .map(|(bp, n)| n * State::new(bp, 24).max_geodes())
             .sum()
     }
     #[test]
@@ -242,7 +191,7 @@ pub mod part2 {
     pub fn solution(s: &str) -> u32 {
         let bps = parse(s.lines().take(3));
         bps.iter()
-            .map(|bp| max_geodes(bp, State::new(), 32, false, false))
+            .map(|bp| State::new(bp, 32).max_geodes())
             .product()
     }
     #[test]
