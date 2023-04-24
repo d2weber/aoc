@@ -4,37 +4,37 @@ pub const SAMPLE: &str = include_str!("sample");
 pub const INPUT: &str = include_str!("input");
 
 #[derive(Clone, Copy)]
-enum Resource {
+enum Kind {
     Ore,
     Clay,
     Obsidian,
     Geode,
 }
 
-use Resource::*;
+use Kind::*;
 
 #[derive(Default, Clone)]
-struct Re<T>([T; 4]);
+struct KindMap<T>([T; 4]);
 
-impl<T> Index<Resource> for Re<T> {
+impl<T> Index<Kind> for KindMap<T> {
     type Output = T;
 
-    fn index(&self, index: Resource) -> &Self::Output {
+    fn index(&self, index: Kind) -> &Self::Output {
         &self.0[index as usize]
     }
 }
-impl<T> IndexMut<Resource> for Re<T> {
-    fn index_mut(&mut self, index: Resource) -> &mut Self::Output {
+impl<T> IndexMut<Kind> for KindMap<T> {
+    fn index_mut(&mut self, index: Kind) -> &mut Self::Output {
         &mut self.0[index as usize]
     }
 }
 
-impl Add<&Re<u32>> for Re<u32> {
-    type Output = Re<u32>;
+impl Add<&KindMap<u32>> for KindMap<u32> {
+    type Output = KindMap<u32>;
 
-    fn add(self, rhs: &Re<u32>) -> Self::Output {
+    fn add(self, rhs: &KindMap<u32>) -> Self::Output {
         // This notation is verbose but more performant
-        Re([
+        KindMap([
             self.0[0] + rhs.0[0],
             self.0[1] + rhs.0[1],
             self.0[2] + rhs.0[2],
@@ -43,14 +43,14 @@ impl Add<&Re<u32>> for Re<u32> {
     }
 }
 
-impl Re<u32> {
-    fn add_one(mut self, r: Resource) -> Self {
+impl KindMap<u32> {
+    fn add_one(mut self, r: Kind) -> Self {
         self[r] += 1;
         self
     }
 
     fn checked_sub(&self, rhs: &Self) -> Option<Self> {
-        Some(Re([
+        Some(KindMap([
             self.0[0].checked_sub(rhs.0[0])?,
             self.0[1].checked_sub(rhs.0[1])?,
             self.0[2].checked_sub(rhs.0[2])?,
@@ -59,7 +59,7 @@ impl Re<u32> {
     }
 }
 
-type Blueprint = Re<Re<u32>>;
+type Blueprint = KindMap<KindMap<u32>>;
 
 fn parse<'a>(lines: impl Iterator<Item = &'a str>) -> Vec<Blueprint> {
     lines
@@ -89,26 +89,33 @@ fn parse<'a>(lines: impl Iterator<Item = &'a str>) -> Vec<Blueprint> {
 #[derive(Clone)]
 struct State<'a> {
     costs: &'a Blueprint,
-    inventory: Re<u32>,
-    n_robots: Re<u32>,
+    inventory: KindMap<u32>,
+    n_robots: KindMap<u32>,
     minutes_left: u32,
     skip_clay: bool,
     skip_ore: bool,
 }
+
+/// Minimum number of minutes that have to be left to construct a robot of
+/// this type. To find all possible solutions these numbers should smaller
+/// but it's much faster like this
+const MIN_CLAY: u32 = 6;
+const MIN_ORE: u32 = 10;
 
 impl<'a> State<'a> {
     fn new(costs: &'a Blueprint, minutes_left: u32) -> State<'a> {
         Self {
             costs,
             inventory: Default::default(),
-            n_robots: Re::<u32>::default().add_one(Ore),
+            n_robots: KindMap::<u32>::default().add_one(Ore),
             minutes_left,
             skip_clay: false,
             skip_ore: false,
         }
     }
 
-    fn buy(&self, r: Resource) -> Option<State> {
+    #[inline(always)]
+    fn construct(&self, r: Kind) -> Option<State> {
         self.inventory.checked_sub(&self.costs[r]).map(|inv| State {
             costs: self.costs,
             inventory: inv + &self.n_robots,
@@ -119,49 +126,55 @@ impl<'a> State<'a> {
         })
     }
 
-    fn buy_none(self, skip_clay: bool, skip_ore: bool) -> Self {
-        State {
-            costs: self.costs,
-            inventory: self.inventory + &self.n_robots,
-            n_robots: self.n_robots,
-            minutes_left: self.minutes_left - 1,
-            skip_clay,
-            skip_ore,
-        }
+    #[inline(always)]
+    fn max_geodes_constructing(&self, r: Kind) -> Option<u32> {
+        self.construct(r).map(|s| s.max_geodes())
     }
 
+    /// Run the simulation, recurring eagerly
     fn max_geodes(self) -> u32 {
         if self.minutes_left == 1 {
             return self.inventory[Geode] + self.n_robots[Geode];
         }
-        if let Some(n) = self.buy(Geode).map(|s| s.max_geodes()) {
+
+        if let Some(n) = self.max_geodes_constructing(Geode) {
             return n;
         }
 
-        let buy_clay = Some(&self)
-            .filter(|s| !s.skip_clay)
-            .filter(|s| s.minutes_left > 5) // improbable to improve when buying late
-            .and_then(|s| s.buy(Clay))
-            .map(|s| s.max_geodes());
-
-        if let Some(n) = Some(&self)
-            .filter(|s| s.minutes_left > 3)
-            .and_then(|s| s.buy(Obsidian))
-            .map(|s| s.max_geodes())
-        {
-            return n.max(buy_clay.unwrap_or(0));
+        if self.minutes_left == 2 {
+            return self.inventory[Geode] + self.n_robots[Geode] + self.n_robots[Geode];
         }
 
-        let buy_ore = Some(&self)
-            .filter(|s| !s.skip_ore)
-            .filter(|s| s.minutes_left > 9) // improbable to improve when buying late
-            .and_then(|s| s.buy(Ore))
-            .map(|s| s.max_geodes());
+        let construct_clay = if self.skip_clay || self.minutes_left < MIN_CLAY {
+            None
+        } else {
+            self.max_geodes_constructing(Clay)
+        };
 
-        self.buy_none(buy_clay.is_some(), buy_ore.is_some())
-            .max_geodes()
-            .max(buy_clay.unwrap_or(0))
-            .max(buy_ore.unwrap_or(0))
+        if let Some(n) = self.max_geodes_constructing(Obsidian) {
+            return n.max(construct_clay.unwrap_or(0));
+        }
+
+        let construct_ore = if self.skip_ore || self.minutes_left < MIN_ORE {
+            None
+        } else {
+            self.max_geodes_constructing(Ore)
+        };
+
+        State {
+            // Don't construct anything (wait)
+            inventory: self.inventory + &self.n_robots,
+            minutes_left: self.minutes_left - 1,
+            // The reason we will never consider constructing one of these robots is
+            // that if we are not constructing any robot but we could, it would never
+            // make sense to construct that robot again before constructing anything else
+            skip_clay: construct_clay.is_some(),
+            skip_ore: construct_ore.is_some(),
+            ..self
+        }
+        .max_geodes()
+        .max(construct_clay.unwrap_or(0))
+        .max(construct_ore.unwrap_or(0))
     }
 }
 
