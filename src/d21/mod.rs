@@ -1,33 +1,36 @@
+use itertools::Itertools;
 use std::collections::HashMap;
 
 pub const SAMPLE: &str = include_str!("sample");
 pub const INPUT: &str = include_str!("input");
 
-type Equations<'a> = HashMap<&'a str, Node<'a>>;
+struct SystemOfEquations<'a>(HashMap<&'a str, Node<'a>>);
 
-fn parse(s: &str) -> Equations {
-    s.lines()
-        .map(|l| {
-            let (k, l) = l.split_once(": ").unwrap();
-            let mut it = l.split_whitespace();
-            let lhs = it.next().unwrap();
-            (
-                k,
-                if let Some(op) = it.next() {
-                    let rhs = it.next().unwrap();
-                    match op {
-                        "+" => Node::Other(lhs, Op::Add, rhs),
-                        "-" => Node::Other(lhs, Op::Sub, rhs),
-                        "*" => Node::Other(lhs, Op::Mul, rhs),
-                        "/" => Node::Other(lhs, Op::Div, rhs),
-                        _ => panic!("Invalid op `{op}`"),
-                    }
-                } else {
-                    Node::Value(lhs.parse().unwrap())
-                },
-            )
-        })
-        .collect()
+fn parse(s: &str) -> SystemOfEquations {
+    SystemOfEquations(
+        s.lines()
+            .map(|l| {
+                let (k, l) = l.split_once(": ").unwrap();
+                let mut it = l.split_whitespace();
+                let lhs = it.next().unwrap();
+                (
+                    k,
+                    if let Some(op) = it.next() {
+                        let rhs = it.next().unwrap();
+                        match op {
+                            "+" => Node::Operation(lhs, Op::Add, rhs),
+                            "-" => Node::Operation(lhs, Op::Sub, rhs),
+                            "*" => Node::Operation(lhs, Op::Mul, rhs),
+                            "/" => Node::Operation(lhs, Op::Div, rhs),
+                            _ => panic!("Invalid op `{op}`"),
+                        }
+                    } else {
+                        Node::Leaf(lhs.parse().unwrap())
+                    },
+                )
+            })
+            .collect(),
+    )
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -38,37 +41,90 @@ enum Op {
     Div,
 }
 
-#[derive(Debug, Clone)]
-enum Node<'a> {
-    Value(i64),
-    Other(&'a str, Op, &'a str),
+impl Op {
+    fn inverse(self) -> Op {
+        match self {
+            Op::Add => Op::Sub,
+            Op::Sub => Op::Add,
+            Op::Mul => Op::Div,
+            Op::Div => Op::Mul,
+        }
+    }
 }
 
-fn traverse(mf: &Equations, recorder: &mut impl FnMut(&str, i64), k: &str) -> Option<i64> {
-    let r = match mf.get(k)? {
-        Node::Value(v) => *v,
-        Node::Other(lhs, op, rhs) => {
-            let l = traverse(mf, recorder, lhs);
-            let r = traverse(mf, recorder, rhs)?;
-            let l = l?;
-            match op {
-                Op::Add => l + r,
-                Op::Sub => l - r,
-                Op::Mul => l * r,
-                Op::Div => l / r,
-            }
+#[derive(Debug, Clone)]
+enum Node<'a> {
+    Leaf(i64),
+    Operation(&'a str, Op, &'a str),
+}
+
+impl Node<'_> {
+    fn as_leaf(&self) -> Option<i64> {
+        match self {
+            Node::Leaf(v) => Some(*v),
+            Node::Operation(_, _, _) => None,
         }
-    };
-    recorder(k, r);
-    Some(r)
+    }
+}
+
+impl<'a> SystemOfEquations<'a> {
+    fn traverse(&mut self, k: &'a str) {
+        let Some(node) = self.0.remove(k) else { return };
+        let node = match node {
+            Node::Operation(lhs, op, rhs) => {
+                self.traverse(lhs);
+                self.traverse(rhs);
+                match (self.get_leaf(lhs), self.get_leaf(rhs)) {
+                    (Some(l), Some(r)) => Node::Leaf(match op {
+                        Op::Add => l + r,
+                        Op::Sub => l - r,
+                        Op::Mul => l * r,
+                        Op::Div => l / r,
+                    }),
+                    _ => Node::Operation(lhs, op, rhs),
+                }
+            }
+            leaf => leaf,
+        };
+        self.0.insert(k, node);
+    }
+
+    fn get_leaf(&self, k: &str) -> Option<i64> {
+        self.0.get(k).and_then(Node::as_leaf)
+    }
+
+    fn reversed(self) -> SystemOfEquations<'a> {
+        SystemOfEquations(
+            self.0
+                .into_iter()
+                // Put the leafes last, so they overwrite Operations when collecting
+                // Bools will be sorted false first, so Operations are first
+                .sorted_unstable_by_key(|(_k, v)| matches!(v, Node::Leaf(_)))
+                .flat_map(|(res, v)| match v {
+                    Node::Operation(lhs, op, rhs) => match op {
+                        Op::Add | Op::Mul => vec![
+                            (lhs, Node::Operation(res, op.inverse(), rhs)),
+                            (rhs, Node::Operation(res, op.inverse(), lhs)),
+                        ],
+                        Op::Sub | Op::Div => vec![
+                            (rhs, Node::Operation(lhs, op, res)),
+                            (lhs, Node::Operation(res, op.inverse(), rhs)),
+                        ],
+                    },
+                    Node::Leaf(v) => vec![(res, Node::Leaf(v))],
+                })
+                .collect(),
+        )
+    }
 }
 
 pub mod part1 {
     use super::*;
 
     pub fn solution(s: &str) -> i64 {
-        let m = parse(s);
-        traverse(&m, &mut |_, _| {}, "root").unwrap()
+        let mut soe = parse(s);
+        soe.traverse("root");
+        soe.get_leaf("root").unwrap()
     }
 
     #[test]
@@ -84,48 +140,21 @@ pub mod part1 {
 pub mod part2 {
     use super::*;
     pub fn solution(s: &str) -> i64 {
-        let mut m = parse(s);
-        m.remove("humn").unwrap();
-        let mut mem = HashMap::new();
-        assert!(traverse(
-            &m,
-            &mut |k, v| {
-                mem.insert(k.to_owned(), v);
-            },
-            "root",
-        )
-        .is_none());
-        let root = match m.get("root").unwrap() {
-            Node::Other(l, _, r) => 2 * mem.get(*l).unwrap_or(mem.get(*r).unwrap()),
-            Node::Value(_) => panic!("Unexpected result"),
+        let mut soe = parse(s);
+        soe.0.remove("humn").unwrap();
+        soe.traverse("root");
+
+        // In the input is written `root = lhs + rhs`
+        // Either `lhs` or `rhs` has to be a leaf. To fullfill the given requrement
+        // `lhs == rhs` we set the value of root to twice the leaf (rhs or lhs)
+        let root_value = match soe.0.get("root").unwrap() {
+            Node::Operation(l, Op::Add, r) => 2 * soe.get_leaf(l).or(soe.get_leaf(r)).unwrap(),
+            _ => panic!(),
         };
-        let mut m: Equations = m
-            .into_iter()
-            .flat_map(|(res, v)| match v {
-                Node::Other(lhs, Op::Add, rhs) => vec![
-                    (lhs, Node::Other(res, Op::Sub, rhs)),
-                    (rhs, Node::Other(res, Op::Sub, lhs)),
-                ],
-                Node::Other(lhs, Op::Sub, rhs) => vec![
-                    (lhs, Node::Other(res, Op::Add, rhs)),
-                    (rhs, Node::Other(lhs, Op::Sub, res)),
-                ],
-                Node::Other(lhs, Op::Mul, rhs) => vec![
-                    (lhs, Node::Other(res, Op::Div, rhs)),
-                    (rhs, Node::Other(res, Op::Div, lhs)),
-                ],
-                Node::Other(lhs, Op::Div, rhs) => vec![
-                    (lhs, Node::Other(res, Op::Mul, rhs)),
-                    (rhs, Node::Other(lhs, Op::Div, res)),
-                ],
-                v @ Node::Value(_) => vec![(res, v)],
-            })
-            .collect();
-        mem.into_iter().for_each(|(k, v)| {
-            *m.get_mut(k.as_str()).unwrap() = Node::Value(v);
-        });
-        m.insert("root", Node::Value(root));
-        traverse(&m, &mut |_, _| {}, "humn").unwrap()
+        let mut soe = soe.reversed();
+        soe.0.insert("root", Node::Leaf(root_value));
+        soe.traverse("humn");
+        soe.get_leaf("humn").unwrap()
     }
 
     #[test]
