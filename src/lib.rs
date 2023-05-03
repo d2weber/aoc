@@ -6,6 +6,9 @@
     future_incompatible
 )]
 
+#[macro_use]
+extern crate impl_ops;
+
 pub mod d01;
 pub mod d02;
 pub mod d03;
@@ -28,6 +31,7 @@ pub mod d19;
 pub mod d20;
 pub mod d21;
 pub mod d22;
+pub mod d23;
 pub mod d25;
 
 pub mod y2021;
