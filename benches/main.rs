@@ -121,8 +121,18 @@ fn d23(c: &mut Criterion) {
     c.bench_function("d23", |b| b.iter(|| solution(black_box(INPUT))));
 }
 
+fn d24(c: &mut Criterion) {
+    use d24::{part2::solution, INPUT};
+    c.bench_function("d24", |b| b.iter(|| solution(black_box(INPUT))));
+}
+
+fn d25(c: &mut Criterion) {
+    use d25::{part1::solution, INPUT};
+    c.bench_function("d25", |b| b.iter(|| solution(black_box(INPUT))));
+}
+
 criterion_group!(
     benches, d01, d02, d03, d04, d05, d06, d07, d08, d09, d10, d11, d12, //
-    d13, d14, d15, d16, d17, d18, d19, d20, d21, d22, d23
+    d13, d14, d15, d16, d17, d18, d19, d20, d21, d22, d23, d24, d25
 );
 criterion_main!(benches);
