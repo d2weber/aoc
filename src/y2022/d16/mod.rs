@@ -1,5 +1,6 @@
-///! This solution was made ugly to experiment with certain optimizations.
-///!
+//! This solution was made ugly to experiment with certain optimizations.
+//!
+
 use itertools::Itertools;
 use std::collections::BTreeSet;
 use std::{
@@ -261,16 +262,19 @@ fn _find_max(
     memory: &mut HashMap<BTreeSet<usize>, u32>,
     max_flow: &mut u32,
 ) {
-    let k = BTreeSet::from_iter(unvisited.clone().into_iter());
+    let k = BTreeSet::from_iter(unvisited.clone());
     let f = *memory.get(&k).unwrap_or(&0).max(&total_flow);
     memory.insert(k, f);
     unvisited.iter().enumerate().for_each(|(i, next)| {
-        let Some(steps_left) = steps_left.checked_sub(
+        let Some(steps_left) = steps_left
+            .checked_sub(
                 valves[current].distances[*next] /* time to walk */
-                 + 1 /* time to open the valve */
-            ).filter(|&steps_left| steps_left != 0) else {
-                return;
-            };
+                 + 1, /* time to open the valve */
+            )
+            .filter(|&steps_left| steps_left != 0)
+        else {
+            return;
+        };
         let total_flow = total_flow + valves[*next].flow_rate * steps_left;
         *max_flow = std::cmp::max(total_flow, *max_flow);
 

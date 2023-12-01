@@ -85,7 +85,7 @@ impl Map {
     fn next(&self, state: State) -> impl Iterator<Item = State> + '_ {
         [ZERO, N, E, S, W].into_iter().filter_map(move |offs| {
             let next_state = State {
-                p: &state.p + offs,
+                p: state.p + offs,
                 t: state.t,
             };
             if self.bounds.within_bbox(&next_state.p)
@@ -129,7 +129,7 @@ pub mod part1 {
 
     pub fn solution(s: &str) -> usize {
         let map = parse(s);
-        map.count_ticks(State { p: ZERO, t: ZERO }, &map.bounds + P { x: -1, y: -1 })
+        map.count_ticks(State { p: ZERO, t: ZERO }, map.bounds + P { x: -1, y: -1 })
             .unwrap()
     }
 
@@ -148,7 +148,7 @@ pub mod part2 {
 
     pub fn solution(s: &str) -> usize {
         let map = parse(s);
-        let end_point = &map.bounds + P { x: -1, y: -1 };
+        let end_point = map.bounds + P { x: -1, y: -1 };
         let mut n = map
             .count_ticks(State { p: ZERO, t: ZERO }, end_point)
             .unwrap();

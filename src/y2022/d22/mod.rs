@@ -1,5 +1,6 @@
-///! Todo: implement proper algorithm to find adjacent edges
-///! (current implementation is buggy and only works, because the ordering was tuned manually)
+//! Todo: implement proper algorithm to find adjacent edges
+//! (current implementation is buggy and only works, because the ordering was tuned manually)
+
 use either::Either;
 use std::collections::HashMap;
 
