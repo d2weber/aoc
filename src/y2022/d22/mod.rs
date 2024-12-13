@@ -195,7 +195,7 @@ impl<const TILE_SIZE: usize> Map<TILE_SIZE> {
 
     fn first_p(&self, state: State) -> P {
         self.wrapped_points(state)
-            .find(|p| self.ps.get(p).is_some())
+            .find(|p| self.ps.contains_key(p))
             .unwrap()
     }
 

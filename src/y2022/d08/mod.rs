@@ -82,7 +82,7 @@ impl<'a, T> Iterator for GridIterator<'a, T> {
     }
 }
 
-impl<'a, T> ExactSizeIterator for GridIterator<'a, T> {}
+impl<T> ExactSizeIterator for GridIterator<'_, T> {}
 
 impl<T> Grid<T> {
     fn row_col(&self, idx: usize) -> (usize, usize) {

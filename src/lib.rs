@@ -1,10 +1,5 @@
 #![warn(clippy::all)]
-#![warn(
-    future_incompatible,
-    let_underscore,
-    nonstandard_style,
-    future_incompatible
-)]
+#![warn(future_incompatible, let_underscore, nonstandard_style)]
 
 #[macro_use]
 extern crate impl_ops;

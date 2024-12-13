@@ -67,7 +67,7 @@ struct RememberIdxCycle<'a> {
     last_idx: usize,
 }
 
-impl<'a> RememberIdxCycle<'a> {
+impl RememberIdxCycle<'_> {
     fn next_unwrap(&mut self) -> u8 {
         let (i, r) = self.it.next().unwrap();
         self.last_idx = i;
