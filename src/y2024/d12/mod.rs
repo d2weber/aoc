@@ -76,24 +76,75 @@ impl Map {
         self.east(field_idx).filter(|i| self.is_same(field_idx, *i))
     }
 
+    fn has_fence_north(&self, field_idx: usize) -> bool {
+        self.north_if_is_same(field_idx).is_none()
+    }
+    fn has_fence_south(&self, field_idx: usize) -> bool {
+        self.south_if_is_same(field_idx).is_none()
+    }
+    fn has_fence_west(&self, field_idx: usize) -> bool {
+        self.west_if_is_same(field_idx).is_none()
+    }
+    fn has_fence_east(&self, field_idx: usize) -> bool {
+        self.east_if_is_same(field_idx).is_none()
+    }
+
     fn perimeter(&self, field_idx: usize) -> u32 {
         [
-            self.north_if_is_same(field_idx),
-            self.south_if_is_same(field_idx),
-            self.west_if_is_same(field_idx),
-            self.east_if_is_same(field_idx),
+            self.has_fence_north(field_idx),
+            self.has_fence_south(field_idx),
+            self.has_fence_west(field_idx),
+            self.has_fence_east(field_idx),
         ]
         .iter()
-        .filter(|f| f.is_none())
+        .filter(|f| **f)
         .count()
         .try_into()
         .unwrap()
     }
-    fn calculate_cost(&self) -> u32 {
+
+    fn n_sides(&self, field_idx: usize) -> u32 {
+        let mut n_sides = 0;
+        if self.has_fence_north(field_idx) {
+            n_sides += 1;
+            if let Some(west_idx) = self.west_if_is_same(field_idx) {
+                if self.has_fence_north(west_idx) {
+                    n_sides -= 1;
+                }
+            }
+        }
+        if self.has_fence_west(field_idx) {
+            n_sides += 1;
+            if let Some(north_idx) = self.north_if_is_same(field_idx) {
+                if self.has_fence_west(north_idx) {
+                    n_sides -= 1;
+                }
+            }
+        }
+        if self.has_fence_south(field_idx) {
+            n_sides += 1;
+            if let Some(west_idx) = self.west_if_is_same(field_idx) {
+                if self.has_fence_south(west_idx) {
+                    n_sides -= 1;
+                }
+            }
+        }
+        if self.has_fence_east(field_idx) {
+            n_sides += 1;
+            if let Some(north_idx) = self.north_if_is_same(field_idx) {
+                if self.has_fence_east(north_idx) {
+                    n_sides -= 1;
+                }
+            }
+        }
+        n_sides
+    }
+
+    fn calculate_cost(&self, cost_fn: impl Fn(usize) -> u32) -> u32 {
         let mut regions = Vec::<(Count, Perimeter, char)>::new();
         let mut field_to_region = Vec::with_capacity(self.fields.len());
         for field_idx in 0..self.fields.len() {
-            let perimeter = self.perimeter(field_idx);
+            let perimeter = cost_fn(field_idx);
             match (
                 self.north_if_is_same(field_idx),
                 self.west_if_is_same(field_idx),
@@ -134,7 +185,7 @@ impl Map {
         regions
             .iter()
             .map(|(c, p, ch)| {
-                dbg!(ch);
+                dbg!(ch, c, p);
                 dbg!(c * p)
             })
             .sum()
@@ -146,7 +197,7 @@ pub mod part1 {
 
     pub fn solution(s: &str) -> u32 {
         let map = Map::from_str(s).unwrap();
-        map.calculate_cost()
+        map.calculate_cost(|i| map.perimeter(i))
     }
 
     #[test]
@@ -163,6 +214,32 @@ pub mod part1 {
     }
     #[test]
     fn actual() {
-        assert_eq!(solution(INPUT), 0);
+        assert_eq!(solution(INPUT), 1465968);
+    }
+}
+
+pub mod part2 {
+    use super::*;
+
+    pub fn solution(s: &str) -> u32 {
+        let map = Map::from_str(s).unwrap();
+        map.calculate_cost(|i| map.n_sides(i))
+    }
+
+    #[test]
+    fn sample1() {
+        assert_eq!(solution(SAMPLE1), 80);
+    }
+    #[test]
+    fn sample2() {
+        assert_eq!(solution(SAMPLE2), 436);
+    }
+    #[test]
+    fn sample3() {
+        assert_eq!(solution(SAMPLE3), 1206);
+    }
+    #[test]
+    fn actual() {
+        assert_eq!(solution(INPUT), 897702);
     }
 }
