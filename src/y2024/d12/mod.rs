@@ -34,8 +34,8 @@ impl FromStr for Map {
     }
 }
 
-type Count = u32;
-type Perimeter = u32;
+type Area = u32;
+type Multiplier = u32;
 
 impl Map {
     fn north(&self, field_idx: usize) -> Option<usize> {
@@ -104,6 +104,11 @@ impl Map {
     }
 
     fn n_sides(&self, field_idx: usize) -> u32 {
+        // To calculate the number of sides, we first check if there is a fence.
+        // If there is an adjacent fence in the same direction and on a field
+        // with the same plant on north or west (which means already visited)
+        // we don't count it
+
         let mut n_sides = 0;
         if self.has_fence_north(field_idx) {
             n_sides += 1;
@@ -140,11 +145,11 @@ impl Map {
         n_sides
     }
 
-    fn calculate_cost(&self, cost_fn: impl Fn(usize) -> u32) -> u32 {
-        let mut regions = Vec::<(Count, Perimeter, char)>::new();
-        let mut field_to_region = Vec::with_capacity(self.fields.len());
+    fn calculate_cost(&self, multiplier_fn: impl Fn(usize) -> u32) -> u32 {
+        let mut regions = Vec::<(Area, Multiplier, char)>::new(); // Include char for debugging
+        let mut field_to_region = Vec::with_capacity(self.fields.len()); // Mapping from field_idx to region_idx
         for field_idx in 0..self.fields.len() {
-            let perimeter = cost_fn(field_idx);
+            let mulitplier = multiplier_fn(field_idx);
             match (
                 self.north_if_is_same(field_idx),
                 self.west_if_is_same(field_idx),
@@ -152,21 +157,21 @@ impl Map {
                 (None, None) => {
                     // New region
                     field_to_region.push(regions.len());
-                    regions.push((1, perimeter, self.fields[field_idx] as char))
+                    regions.push((1, mulitplier, self.fields[field_idx] as char))
                 }
                 (Some(other_field_idx), None) | (None, Some(other_field_idx)) => {
                     // Add current field to region of other_field_idx
                     let region_idx = field_to_region[other_field_idx];
                     field_to_region.push(region_idx);
                     regions[region_idx].0 += 1;
-                    regions[region_idx].1 += perimeter;
+                    regions[region_idx].1 += mulitplier;
                 }
                 (Some(other_field_idx), Some(purge_field_idx)) => {
                     // Merge two regions
                     let region_idx = field_to_region[other_field_idx];
                     field_to_region.push(region_idx);
                     regions[region_idx].0 += 1;
-                    regions[region_idx].1 += perimeter;
+                    regions[region_idx].1 += mulitplier;
 
                     let purge_region_idx = field_to_region[purge_field_idx];
                     if region_idx != purge_region_idx {
@@ -184,9 +189,9 @@ impl Map {
         }
         regions
             .iter()
-            .map(|(c, p, ch)| {
-                dbg!(ch, c, p);
-                dbg!(c * p)
+            .map(|(area, mult, ch)| {
+                dbg!(ch, area, mult);
+                dbg!(area * mult)
             })
             .sum()
     }
