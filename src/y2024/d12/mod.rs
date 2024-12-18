@@ -187,13 +187,7 @@ impl Map {
                 }
             }
         }
-        regions
-            .iter()
-            .map(|(area, mult, ch)| {
-                dbg!(ch, area, mult);
-                dbg!(area * mult)
-            })
-            .sum()
+        regions.iter().map(|(area, mult, _ch)| area * mult).sum()
     }
 }
 
